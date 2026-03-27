@@ -958,32 +958,32 @@ function getGistToken(){return '';}
 function setGistToken(t){localStorage.setItem('_rpro_gtoken',t);}
 
 async function saveToGist(data){
-  if(_gistSaving){_pendingSave=true;return;}
-  _gistSaving=true;
+  try{localStorage.setItem('restaurantepro_v4',JSON.stringify(data));}catch(e){}
   try{
-    const saveResp=await fetch(`https://api.github.com/gists/${GIST_ID}`,{
-      method:'PATCH',
-      mode:'cors',
-      headers:{'Authorization':`token ${getGistToken()}`,'Content-Type':'application/json','X-GitHub-Api-Version':'2022-11-28'},
-      body:JSON.stringify({files:{[GIST_FILE]:{content:JSON.stringify(data)}}})
+    const r=await fetch('https://dsmelwukmtopqsvtnzpt.supabase.co/rest/v1/restaurantepro',{
+      method:'POST',
+      headers:{'apikey':'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRzbWVsd3VrbXRvcHFzdnRuenB0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2NDA3ODcsImV4cCI6MjA5MDIxNjc4N30.yT9J0LbhxA6UpWi4tWBCiBHmnQBckMCZzjhu6gO8AA0','Authorization':'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRzbWVsd3VrbXRvcHFzdnRuenB0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2NDA3ODcsImV4cCI6MjA5MDIxNjc4N30.yT9J0LbhxA6UpWi4tWBCiBHmnQBckMCZzjhu6gO8AA0','Content-Type':'application/json','Prefer':'resolution=merge-duplicates'},
+      body:JSON.stringify({id:1,data:data,updated_at:new Date().toISOString()})
     });
-    if(!saveResp.ok){const err=await saveResp.text();console.warn('Gist save HTTP error:',saveResp.status,err);}
-  }catch(e){console.warn('Gist save error:',e);}
-  finally{_gistSaving=false;if(_pendingSave){_pendingSave=false;saveToGist(S);}}
+    return r.ok;
+  }catch(e){console.warn('Save error:',e);return false;}
 }
 
 async function loadFromGist(){
   try{
-    const r=await fetch(`https://api.github.com/gists/${GIST_ID}`,{
-      mode:'cors',
-      headers:{'Authorization':`token ${getGistToken()}`,'Accept':'application/vnd.github.v3+json','X-GitHub-Api-Version':'2022-11-28'}
+    const r=await fetch('https://dsmelwukmtopqsvtnzpt.supabase.co/rest/v1/restaurantepro?id=eq.1&select=data',{
+      headers:{'apikey':'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRzbWVsd3VrbXRvcHFzdnRuenB0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2NDA3ODcsImV4cCI6MjA5MDIxNjc4N30.yT9J0LbhxA6UpWi4tWBCiBHmnQBckMCZzjhu6gO8AA0','Authorization':'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRzbWVsd3VrbXRvcHFzdnRuenB0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2NDA3ODcsImV4cCI6MjA5MDIxNjc4N30.yT9J0LbhxA6UpWi4tWBCiBHmnQBckMCZzjhu6gO8AA0'}
     });
-    if(!r.ok){console.warn('Gist load HTTP error:',r.status,await r.text());return null;}
-    const g=await r.json();
-    const raw=g.files[GIST_FILE]?.content||'{}';
-    const d=JSON.parse(raw);
-    return d._init?null:d;
-  }catch(e){console.warn('Gist load error:',e);return null;}
+    if(r.ok){
+      const rows=await r.json();
+      if(rows&&rows.length>0&&rows[0].data){
+        try{localStorage.setItem('restaurantepro_v4',JSON.stringify(rows[0].data));}catch(e){}
+        return rows[0].data;
+      }
+    }
+  }catch(e){console.warn('Load error:',e);}
+  try{const r=localStorage.getItem('restaurantepro_v4');if(r)return JSON.parse(r);}catch(e){}
+  return null;
 }
 
 function mergeDefaults(d){
@@ -1060,32 +1060,28 @@ function showSyncInd(msg, color){
 async function syncFromGist(){
   if(_syncing)return;
   _syncing=true;
-  showSyncInd('🔄 Carregando da nuvem...','#185FA5');
-  // Save current local logs before sync (they contain the current session events)
+  showSyncInd('☁ Carregando...','#185FA5');
   const localLogsAcesso=[...logsAcesso];
   const localLogsPrint=[...logsPrint];
   const localLogsNegado=[...logsNegado];
   const gistData=await loadFromGist();
   _syncing=false;
   if(!gistData||gistData._init){
-    showSyncInd('📤 Enviando para nuvem...','#854F0B');
+    showSyncInd('📤 Salvando na nuvem...','#854F0B');
     await saveToGist(S);
-    showSyncInd('✓ Dados enviados!','');
+    showSyncInd('✓ Salvo!','');
     return;
   }
   applyState(mergeDefaults(gistData));
-  // Merge logs: keep local entries that are newer (current session)
-  // prepend local entries not yet in cloud
   const cloudTs=new Set((logsAcesso||[]).map(l=>l.ts+l.evento));
   localLogsAcesso.forEach(l=>{if(!cloudTs.has(l.ts+l.evento))logsAcesso.unshift(l);});
-  const cloudPrintTs=new Set((logsPrint||[]).map(l=>l.ts+l.tela));
-  localLogsPrint.forEach(l=>{if(!cloudPrintTs.has(l.ts+l.tela))logsPrint.unshift(l);});
+  const cloudPrintTs=new Set((logsPrint||[]).map(l=>l.ts+(l.tela||'')));
+  localLogsPrint.forEach(l=>{if(!cloudPrintTs.has(l.ts+(l.tela||'')))logsPrint.unshift(l);});
   const cloudNegTs=new Set((logsNegado||[]).map(l=>l.ts+l.motivo));
   localLogsNegado.forEach(l=>{if(!cloudNegTs.has(l.ts+l.motivo))logsNegado.unshift(l);});
   showSyncInd('✓ Sincronizado!','');
   try{renderAll();}catch(e){}
-  // Save merged state back to cloud
-  setTimeout(()=>saveToGist(S),1000);
+  setTimeout(()=>saveToGist(S),500);
 }
 
 function confirmarReset(){
