@@ -965,8 +965,9 @@ async function saveToGist(data){
       headers:{'apikey':'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRzbWVsd3VrbXRvcHFzdnRuenB0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2NDA3ODcsImV4cCI6MjA5MDIxNjc4N30.yT9J0LbhxA6UpWi4tWBCiBHmnQBckMCZzjhu6gO8AA0','Authorization':'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRzbWVsd3VrbXRvcHFzdnRuenB0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2NDA3ODcsImV4cCI6MjA5MDIxNjc4N30.yT9J0LbhxA6UpWi4tWBCiBHmnQBckMCZzjhu6gO8AA0','Content-Type':'application/json','Prefer':'resolution=merge-duplicates'},
       body:JSON.stringify({id:1,data:data,updated_at:new Date().toISOString()})
     });
+    if(!r.ok){const t=await r.text();console.warn('Save HTTP error:',r.status,t);}
     return r.ok;
-  }catch(e){console.warn('Save error:',e);return false;}
+  }catch(e){console.warn('Save error:',e.name,e.message);return false;}
 }
 
 async function loadFromGist(){
