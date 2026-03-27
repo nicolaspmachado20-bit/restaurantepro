@@ -1012,11 +1012,17 @@ function saveState(){
   S={geoConfig,funcionarios,tarifas,taxasConfig,escalas,pontos,extras,pedidosEscala,bloqLog,nextIds,faltas,folgas,usuarios,logsAcesso,logsPrint,logsNegado};
   try{localStorage.setItem('restaurantepro_v4',JSON.stringify(S));}catch(e){}
   clearTimeout(saveTimer);
-  saveTimer=setTimeout(()=>{
+  saveTimer=setTimeout(async()=>{
     try{localStorage.setItem('restaurantepro_v4',JSON.stringify(S));}catch(e){}
     const ind=document.getElementById('save-ind');
-    if(ind){ind.textContent='✓ Dados salvos';ind.classList.add('show');setTimeout(()=>ind.classList.remove('show'),2000);}
-  },800);
+    if(ind){ind.textContent='☁ Salvando...';ind.classList.add('show');}
+    const ok=await saveToGist(S);
+    if(ind){
+      ind.textContent=ok?'✓ Salvo na nuvem':'✓ Salvo local';
+      ind.style.background=ok?'':'var(--amber)';
+      setTimeout(()=>{ind.classList.remove('show');ind.style.background='';},2000);
+    }
+  },1500);
 }
 
 function applyState(newS){
