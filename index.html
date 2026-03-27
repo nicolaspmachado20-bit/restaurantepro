@@ -234,7 +234,8 @@ label{font-size:11px;color:var(--text2);margin-bottom:4px;display:block;font-wei
 <div id="user-bar" style="display:none;position:fixed;top:0;right:0;left:0;height:40px;background:#1c1a17;color:#fff;z-index:9999;align-items:center;justify-content:flex-end;padding:0 16px;gap:8px;font-size:12px">
   <span id="user-bar-name" style="opacity:.7"></span>
   <span id="user-bar-time" style="font-family:'DM Mono',monospace;opacity:.5"></span>
-  <button onclick="syncFromGist()" style="background:rgba(255,255,255,.12);border:none;color:#fff;padding:3px 10px;border-radius:5px;cursor:pointer;font-size:11px" title="Sincronizar dados da nuvem" onclick="getGistToken()?syncFromGist():abrirConfigGist()">☁ Sincronizar</button>
+  <button onclick="exportarDados()" style="background:rgba(255,255,255,.12);border:none;color:#fff;padding:3px 10px;border-radius:5px;cursor:pointer;font-size:11px">⬇ Exportar</button>
+  <button onclick="importarDados()" style="background:rgba(255,255,255,.12);border:none;color:#fff;padding:3px 10px;border-radius:5px;cursor:pointer;font-size:11px">⬆ Importar</button>
   <button onclick="abrirTrocarSenha()" style="background:rgba(255,255,255,.12);border:none;color:#fff;padding:3px 10px;border-radius:5px;cursor:pointer;font-size:11px">🔑 Trocar senha</button>
   <button onclick="doLogout()" style="background:rgba(255,255,255,.15);border:none;color:#fff;padding:3px 10px;border-radius:5px;cursor:pointer;font-size:11px">Sair</button>
 </div>
@@ -953,18 +954,20 @@ const GIST_ID='2abf53ec70c7404b71867c8543d2e277';
 const GIST_FILE='restaurantepro_data.json';
 let _gistSaving=false, _pendingSave=false;
 // Token stored in localStorage only - never in code
-function getGistToken(){return localStorage.getItem('_rpro_gtoken')||'';}
+function getGistToken(){return '';}
 function setGistToken(t){localStorage.setItem('_rpro_gtoken',t);}
 
 async function saveToGist(data){
   if(_gistSaving){_pendingSave=true;return;}
   _gistSaving=true;
   try{
-    await fetch(`https://api.github.com/gists/${GIST_ID}`,{
+    const saveResp=await fetch(`https://api.github.com/gists/${GIST_ID}`,{
       method:'PATCH',
-      headers:{'Authorization':`token ${getGistToken()}`,'Content-Type':'application/json'},
+      mode:'cors',
+      headers:{'Authorization':`token ${getGistToken()}`,'Content-Type':'application/json','X-GitHub-Api-Version':'2022-11-28'},
       body:JSON.stringify({files:{[GIST_FILE]:{content:JSON.stringify(data)}}})
     });
+    if(!saveResp.ok){const err=await saveResp.text();console.warn('Gist save HTTP error:',saveResp.status,err);}
   }catch(e){console.warn('Gist save error:',e);}
   finally{_gistSaving=false;if(_pendingSave){_pendingSave=false;saveToGist(S);}}
 }
@@ -972,9 +975,10 @@ async function saveToGist(data){
 async function loadFromGist(){
   try{
     const r=await fetch(`https://api.github.com/gists/${GIST_ID}`,{
-      headers:{'Authorization':`token ${getGistToken()}`,'Accept':'application/vnd.github.v3+json'}
+      mode:'cors',
+      headers:{'Authorization':`token ${getGistToken()}`,'Accept':'application/vnd.github.v3+json','X-GitHub-Api-Version':'2022-11-28'}
     });
-    if(!r.ok)return null;
+    if(!r.ok){console.warn('Gist load HTTP error:',r.status,await r.text());return null;}
     const g=await r.json();
     const raw=g.files[GIST_FILE]?.content||'{}';
     const d=JSON.parse(raw);
@@ -1008,16 +1012,11 @@ function saveState(){
   S={geoConfig,funcionarios,tarifas,taxasConfig,escalas,pontos,extras,pedidosEscala,bloqLog,nextIds,faltas,folgas,usuarios,logsAcesso,logsPrint,logsNegado};
   try{localStorage.setItem('restaurantepro_v4',JSON.stringify(S));}catch(e){}
   clearTimeout(saveTimer);
-  saveTimer=setTimeout(async()=>{
+  saveTimer=setTimeout(()=>{
+    try{localStorage.setItem('restaurantepro_v4',JSON.stringify(S));}catch(e){}
     const ind=document.getElementById('save-ind');
-    if(ind){ind.textContent='☁ Sincronizando...';ind.classList.add('show');}
-    const ok=await saveToGist(S);
-    if(ind){
-      ind.textContent=ok?'✓ Sincronizado':'⚠ Salvo local';
-      ind.style.background=ok?'':'var(--amber)';
-      setTimeout(()=>{ind.classList.remove('show');ind.textContent='Dados salvos';ind.style.background='';},2000);
-    }
-  },1500);
+    if(ind){ind.textContent='✓ Dados salvos';ind.classList.add('show');setTimeout(()=>ind.classList.remove('show'),2000);}
+  },800);
 }
 
 function applyState(newS){
@@ -2750,7 +2749,7 @@ function abrirConfigGist(){
     <div id="gist-cfg-msg"></div>
     <div style="margin-bottom:14px">
       <label style="font-size:12px;font-weight:600;color:#555;display:block;margin-bottom:5px">GitHub Token</label>
-      <input type="password" id="gist-token-input" value="${tk}" placeholder="ghp_..."
+      <input type="password" id="gist-token-input" value="${tk}" placeholder="Cole o token aqui..."
         style="width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:monospace;box-sizing:border-box">
     </div>
     <div style="display:flex;gap:8px">
@@ -2780,6 +2779,37 @@ async function salvarConfigGist(){
   } else {
     if(msg)msg.innerHTML='<div class="al al-d" style="margin-bottom:10px">Erro ao conectar. Verifique o token e a permissão "gist".</div>';
   }
+}
+
+function exportarDados(){
+  const json=JSON.stringify(S,null,2);
+  const blob=new Blob([json],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download='restaurantepro_backup_'+todayStr+'.json';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importarDados(){
+  const inp=document.createElement('input');
+  inp.type='file';inp.accept='.json';
+  inp.onchange=async e=>{
+    const file=e.target.files[0];
+    if(!file)return;
+    try{
+      const text=await file.text();
+      const data=JSON.parse(text);
+      if(!data.funcionarios&&!data.usuarios){alert('Arquivo inválido.');return;}
+      if(!confirm('Importar dados? Os dados atuais serão substituídos.'))return;
+      applyState(mergeDefaults(data));
+      try{localStorage.setItem('restaurantepro_v4',JSON.stringify(S));}catch(e){}
+      renderAll();
+      alert('✓ Dados importados com sucesso!');
+    }catch(e){alert('Erro ao importar: '+e.message);}
+  };
+  inp.click();
 }
 
 function salvarGeo(){}
