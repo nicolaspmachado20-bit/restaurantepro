@@ -234,7 +234,7 @@ label{font-size:11px;color:var(--text2);margin-bottom:4px;display:block;font-wei
 <div id="user-bar" style="display:none;position:fixed;top:0;right:0;left:0;height:40px;background:#1c1a17;color:#fff;z-index:9999;align-items:center;justify-content:flex-end;padding:0 16px;gap:8px;font-size:12px">
   <span id="user-bar-name" style="opacity:.7"></span>
   <span id="user-bar-time" style="font-family:'DM Mono',monospace;opacity:.5"></span>
-  <button onclick="syncFromGist()" style="background:rgba(255,255,255,.12);border:none;color:#fff;padding:3px 10px;border-radius:5px;cursor:pointer;font-size:11px" title="Sincronizar dados da nuvem">☁ Sincronizar</button>
+  <button onclick="syncFromGist()" style="background:rgba(255,255,255,.12);border:none;color:#fff;padding:3px 10px;border-radius:5px;cursor:pointer;font-size:11px" title="Sincronizar dados da nuvem" onclick="getGistToken()?syncFromGist():abrirConfigGist()">☁ Sincronizar</button>
   <button onclick="abrirTrocarSenha()" style="background:rgba(255,255,255,.12);border:none;color:#fff;padding:3px 10px;border-radius:5px;cursor:pointer;font-size:11px">🔑 Trocar senha</button>
   <button onclick="doLogout()" style="background:rgba(255,255,255,.15);border:none;color:#fff;padding:3px 10px;border-radius:5px;cursor:pointer;font-size:11px">Sair</button>
 </div>
@@ -286,6 +286,11 @@ label{font-size:11px;color:var(--text2);margin-bottom:4px;display:block;font-wei
   <div class="nav-item" onclick="go('logs')" id="nav-logs">
     <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3h12M2 7h8M2 11h10"/><circle cx="13" cy="11" r="2.5"/><path d="M13 9.5v1.5l1 1"/></svg>
     Logs de acesso
+  </div>
+  <div id="btn-config-gist" style="display:none;padding:4px 12px">
+    <button onclick="abrirConfigGist()" class="btn btn-sm" style="width:100%;justify-content:center;font-size:11px;gap:5px;background:var(--amber-bg);color:var(--amber);border-color:var(--amber-border)" id="btn-gist-status">
+      ☁ Configurar nuvem
+    </button>
   </div>
   <div id="btn-gestao-usuarios" style="display:none;padding:8px 12px">
     <button onclick="abrirGestaoUsuarios()" class="btn btn-sm" style="width:100%;justify-content:center;font-size:11px;gap:5px">
@@ -945,9 +950,11 @@ if(!Array.isArray(bloqLog))bloqLog=[];
 
 // ===================== GIST CLOUD STORAGE =====================
 const GIST_ID='2abf53ec70c7404b71867c8543d2e277';
-const GIST_TOKEN='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';
 const GIST_FILE='restaurantepro_data.json';
 let _gistSaving=false, _pendingSave=false;
+// Token stored in localStorage only - never in code
+function getGistToken(){return localStorage.getItem('_rpro_gtoken')||'';}
+function setGistToken(t){localStorage.setItem('_rpro_gtoken',t);}
 
 async function saveToGist(data){
   if(_gistSaving){_pendingSave=true;return;}
@@ -955,7 +962,7 @@ async function saveToGist(data){
   try{
     await fetch(`https://api.github.com/gists/${GIST_ID}`,{
       method:'PATCH',
-      headers:{'Authorization':`token ${GIST_TOKEN}`,'Content-Type':'application/json'},
+      headers:{'Authorization':`token ${getGistToken()}`,'Content-Type':'application/json'},
       body:JSON.stringify({files:{[GIST_FILE]:{content:JSON.stringify(data)}}})
     });
   }catch(e){console.warn('Gist save error:',e);}
@@ -965,7 +972,7 @@ async function saveToGist(data){
 async function loadFromGist(){
   try{
     const r=await fetch(`https://api.github.com/gists/${GIST_ID}`,{
-      headers:{'Authorization':`token ${GIST_TOKEN}`,'Accept':'application/vnd.github.v3+json'}
+      headers:{'Authorization':`token ${getGistToken()}`,'Accept':'application/vnd.github.v3+json'}
     });
     if(!r.ok)return null;
     const g=await r.json();
@@ -1011,6 +1018,38 @@ function saveState(){
       setTimeout(()=>{ind.classList.remove('show');ind.textContent='Dados salvos';ind.style.background='';},2000);
     }
   },1500);
+}
+
+function applyState(newS){
+  if(!newS)return;
+  geoConfig=newS.geoConfig||geoConfig;
+  funcionarios=newS.funcionarios||funcionarios;
+  tarifas=newS.tarifas||tarifas;
+  taxasConfig=newS.taxasConfig||taxasConfig;
+  escalas=newS.escalas||escalas;
+  pontos=newS.pontos||pontos;
+  extras=newS.extras||extras;
+  pedidosEscala=newS.pedidosEscala||pedidosEscala;
+  bloqLog=newS.bloqLog||bloqLog;
+  nextIds=newS.nextIds||nextIds;
+  faltas=newS.faltas||faltas;
+  folgas=newS.folgas||folgas;
+  usuarios=newS.usuarios||usuarios;
+  logsAcesso=newS.logsAcesso||logsAcesso;
+  logsPrint=newS.logsPrint||logsPrint;
+  logsNegado=newS.logsNegado||logsNegado;
+  S=newS;
+  // Save to localStorage as backup
+  try{localStorage.setItem('restaurantepro_v4',JSON.stringify(S));}catch(e){}
+}
+
+function showSyncInd(msg, color){
+  const ind=document.getElementById('save-ind');
+  if(!ind)return;
+  ind.textContent=msg;
+  if(color)ind.style.background=color;
+  ind.classList.add('show');
+  setTimeout(()=>{ind.classList.remove('show');ind.style.background='';ind.textContent='Dados salvos';},3000);
 }
 
 async function syncFromGist(){
@@ -2681,6 +2720,68 @@ function criarEAprovarHE(funcId, dateKey, aprovar){
   renderDash();
 }
 
+function updateGistStatus(){
+  const tk=getGistToken();
+  const btn=document.getElementById('btn-gist-status');
+  if(btn){
+    if(tk){btn.textContent='☁ Nuvem conectada';btn.style.background='var(--accent-light)';btn.style.color='var(--accent)';btn.style.borderColor='var(--accent)';}
+    else{btn.textContent='⚠ Configurar nuvem';btn.style.background='var(--amber-bg)';btn.style.color='var(--amber)';btn.style.borderColor='var(--amber-border)';}
+  }
+  const btnB=document.getElementById('btn-config-gist-bar');
+  if(btnB){
+    if(tk){btnB.textContent='☁ Nuvem OK';btnB.style.background='rgba(45,90,39,.3)';btnB.style.color='#7cb87a';btnB.style.borderColor='rgba(45,90,39,.5)';}
+    else{btnB.textContent='⚠ Configurar nuvem';btnB.style.background='rgba(255,165,0,.2)';btnB.style.color='#f0a500';btnB.style.borderColor='rgba(255,165,0,.4)';}
+  }
+}
+
+function abrirConfigGist(){
+  const existing=document.getElementById('gist-config-modal');
+  if(existing)existing.remove();
+  const modal=document.createElement('div');
+  modal.id='gist-config-modal';
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99998;display:flex;align-items:center;justify-content:center;padding:20px';
+  const tk=getGistToken();
+  modal.innerHTML=`<div style="background:#fff;border-radius:12px;padding:28px 32px;width:460px;max-width:100%;box-shadow:0 8px 40px rgba(0,0,0,.3)">
+    <div style="font-size:16px;font-weight:700;margin-bottom:6px">☁ Configuração da nuvem</div>
+    <div style="font-size:12px;color:#666;margin-bottom:20px">
+      Cole o GitHub Personal Access Token (com permissão <strong>gist</strong>).<br>
+      O token fica salvo apenas neste dispositivo, nunca no código.
+    </div>
+    <div id="gist-cfg-msg"></div>
+    <div style="margin-bottom:14px">
+      <label style="font-size:12px;font-weight:600;color:#555;display:block;margin-bottom:5px">GitHub Token</label>
+      <input type="password" id="gist-token-input" value="${tk}" placeholder="ghp_..."
+        style="width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:monospace;box-sizing:border-box">
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-p" onclick="salvarConfigGist()" style="flex:1;justify-content:center">Salvar e testar</button>
+      <button class="btn" onclick="document.getElementById('gist-config-modal').remove()">Cancelar</button>
+    </div>
+  </div>`;
+  document.body.appendChild(modal);
+  setTimeout(()=>document.getElementById('gist-token-input')?.focus(),100);
+}
+
+async function salvarConfigGist(){
+  const tk=document.getElementById('gist-token-input')?.value.trim();
+  const msg=document.getElementById('gist-cfg-msg');
+  if(!tk){if(msg)msg.innerHTML='<div class="al al-w" style="margin-bottom:10px">Cole o token.</div>';return;}
+  setGistToken(tk);
+  if(msg)msg.innerHTML='<div class="al al-i" style="margin-bottom:10px">Testando conexão...</div>';
+  // Test by loading gist
+  const r=await loadFromGist();
+  if(r!==undefined){
+    if(msg)msg.innerHTML='<div class="al al-s" style="margin-bottom:10px">✓ Conectado! Sincronizando...</div>';
+    updateGistStatus();
+    setTimeout(async()=>{
+      await saveToGist(S);
+      document.getElementById('gist-config-modal')?.remove();
+    },1500);
+  } else {
+    if(msg)msg.innerHTML='<div class="al al-d" style="margin-bottom:10px">Erro ao conectar. Verifique o token e a permissão "gist".</div>';
+  }
+}
+
 function salvarGeo(){}
 
 function capturarGeoAtual(){}
@@ -3419,6 +3520,12 @@ function applyPerfilRestrictions(){
   if(logsNav)logsNav.style.display=currentUser.perfil==='admin'?'':'none';
   const btnGU=document.getElementById('btn-gestao-usuarios');
   if(btnGU)btnGU.style.display=currentUser.perfil==='admin'?'block':'none';
+  const btnCG=document.getElementById('btn-config-gist');
+  if(btnCG)btnCG.style.display=currentUser.perfil==='admin'?'block':'none';
+  const btnCGB=document.getElementById('btn-config-gist-bar');
+  if(btnCGB)btnCGB.style.display=currentUser.perfil==='admin'?'inline-flex':'none';
+  // Update gist button status
+  updateGistStatus();
 }
 
 function startSessionTimer(){
@@ -3644,15 +3751,8 @@ function renderActive() {
 safeRender(renderDash, 'renderDash');
 safeRender(refreshSelects, 'refreshSelects');
 try{autoFillMissingPontos();}catch(e){console.warn('autoFill:',e);}
-// Initial sync from Gist on page load
-setTimeout(async()=>{
-  const gistData=await loadFromGist();
-  if(gistData&&!gistData._init){
-    applyState(mergeDefaults(gistData));
-    try{renderAll();}catch(e){}
-  }
-},1000);
-initGistSync();
+// Gist sync happens after login via syncFromGist()
+// initGistSync removed
 setTimeout(() => {
   safeRender(renderDayTabs, 'renderDayTabs');
   selectDia(todayStr);
