@@ -4134,7 +4134,8 @@ function addTarifa(){
   const rows=[...document.querySelectorAll('#tr-tipos .fr')];
   const tipos=rows.map(r=>{
     const inputs=r.querySelectorAll('input');
-    return {nome:inputs[0]?.value.trim(),val:parseFloat(inputs[1]?.value)||0,cod:inputs[2]?.value.trim()||''};
+    const valStr=(inputs[1]?.value||'').replace(',','.');
+    return {nome:inputs[0]?.value.trim(),val:parseFloat(valStr)||0,cod:inputs[2]?.value.trim()||''};
   }).filter(t=>t.nome&&t.val>0);
   if(!tipos.length){if(msg)msg.innerHTML='<div class="al al-w">Adicione pelo menos um tipo com nome e valor.</div>';return;}
   if(!nextIds.tar)nextIds.tar=1;
@@ -4170,7 +4171,7 @@ function addTaxa(){
   const nome=document.getElementById('tx-nome')?.value.trim();
   const setor=document.getElementById('tx-setor')?.value||'';
   const turno=document.getElementById('tx-turno')?.value||'';
-  const valor=parseFloat(document.getElementById('tx-valor')?.value)||0;
+  const valor=parseFloat((document.getElementById('tx-valor')?.value||'').replace(',','.'))||0;
   const msg=document.getElementById('tx-msg');
   if(!nome){if(msg)msg.innerHTML='<div class="al al-w">Informe o nome.</div>';return;}
   if(!valor){if(msg)msg.innerHTML='<div class="al al-w">Informe o valor da diária.</div>';return;}
