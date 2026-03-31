@@ -3301,11 +3301,25 @@ function renderFolgas(){
 }
 
 // ===================== CARREGAR PADRÃO (com folgas) =====================
+function carregarPadraoDiaForce(dateKey){
+  // Load standard scale for any day (no date restriction)
+  return _carregarPadraoDia(dateKey, false);
+}
+
 function carregarPadraoDia(dateKey){
   // Load standard scale for a single day - only future or today
   const hoje=new Date(); hoje.setHours(0,0,0,0);
   const d=new Date(dateKey+'T12:00:00');
   if(d<hoje)return 0; // skip past days
+  return _carregarPadraoDia(dateKey, true);
+}
+
+function _carregarPadraoDia(dateKey, futureOnly){
+  if(futureOnly){
+    const hoje=new Date(); hoje.setHours(0,0,0,0);
+    const d=new Date(dateKey+'T12:00:00');
+    if(d<hoje)return 0;
+  }
   const dow=d.getDay();
   const diaNum=d.getDate();
   const mes=d.getMonth();
@@ -3351,12 +3365,12 @@ function carregarPadrao(){
   const hoje2=new Date(); hoje2.setHours(0,0,0,0);
 
   if(opcao){
-    // Load entire month from today onwards
+    // Load entire month - ALL days
     const diasNoMes=new Date(anoAtual,mesAtual+1,0).getDate();
     let diasCarregados=0;
     for(let dia=1;dia<=diasNoMes;dia++){
       const dk=`${anoAtual}-${String(mesAtual+1).padStart(2,'0')}-${String(dia).padStart(2,'0')}`;
-      const loaded=carregarPadraoDia(dk);
+      const loaded=carregarPadraoDiaForce(dk); // force = load even past days
       if(loaded>=0)diasCarregados++;
     }
     saveState();
@@ -3366,7 +3380,7 @@ function carregarPadrao(){
     if(wrap){
       const msg=document.createElement('div');
       msg.className='al al-s';msg.style.marginBottom='8px';
-      msg.innerHTML='<strong>Padrão carregado para o mês todo!</strong> Dias passados foram ignorados. Revise se necessário.';
+      msg.innerHTML='<strong>Padrão carregado para o mês todo!</strong> Revise e ajuste se necessário.';
       wrap.insertAdjacentElement('afterbegin',msg);
       setTimeout(()=>msg.remove(),6000);
     }
