@@ -699,7 +699,7 @@ label{font-size:11px;color:var(--text2);margin-bottom:4px;display:block;font-wei
       </div>
     </div>
     <div class="fr c2">
-      <div><label>Valor da diária (R$)</label><input type="text" id="tx-valor" placeholder="Ex: 120,00"></div>
+      <div><label>Valor da diária (R$)</label><input type="text" inputmode="decimal" id="tx-valor" placeholder="0,00"></div>
       <div style="display:flex;align-items:flex-end"><button class="btn btn-p" style="width:100%" onclick="addTaxa()">+ Criar tabela</button></div>
     </div>
     <div id="tx-msg"></div>
@@ -3041,7 +3041,7 @@ function renderAll(){
 
 // Seed tarifas rows
 const trTipos=document.getElementById('tr-tipos');
-if(trTipos)trTipos.innerHTML=`<div class="fr c3" style="margin-bottom:6px"><div><label>Nome do tipo</label><input type="text" placeholder="Ex: H.E. 50%" class="ti-n"></div><div><label>Valor/hora (R$)</label><input type="text" placeholder="Ex: 13,28" class="ti-v"></div><div><label>Código</label><input type="text" placeholder="HE50" class="ti-c"></div></div>`;
+if(trTipos)trTipos.innerHTML=`<div class="fr c3" style="margin-bottom:6px"><div><label>Nome do tipo</label><input type="text" placeholder="Ex: H.E. 50%" class="ti-n"></div><div><label>Valor/hora (R$)</label><input type="number" placeholder="0,00" step="0.01" class="ti-v"></div><div><label>Código</label><input type="text" placeholder="HE50" class="ti-c"></div></div>`;
 
 // Populate mes/ano
 const escMes=document.getElementById('escala-mes');
@@ -3954,27 +3954,38 @@ function addFunc(){
 function excluirFunc(id){
   const f=funcionarios.find(x=>x.id===id);
   if(!f)return;
-  if(!confirm('Excluir '+f.nome+'?\nO funcionário será removido da escala de todos os dias futuros. Esta ação não pode ser desfeita.'))return;
-  const hoje=new Date(); hoje.setHours(0,0,0,0);
-  // Remove from future escala days only (keep past for history)
+  if(!confirm('Excluir '+f.nome+'?
+O funcionário será removido de TODA a escala do sistema e ficará inativo no cadastro. Esta ação não pode ser desfeita.'))return;
+
+  // Remove o funcionário de todos os dias da escala, inclusive históricos
   Object.keys(escalas).forEach(dateKey=>{
-    const d=new Date(dateKey+'T12:00:00');
-    if(d<hoje)return; // keep past data intact
     const dia=escalas[dateKey];
+    if(!dia || typeof dia!=='object')return;
     Object.keys(dia).forEach(setor=>{
-      if(dia[setor]?.linhas)dia[setor].linhas=dia[setor].linhas.filter(e=>e.funcId!==id);
+      if(Array.isArray(dia[setor]?.linhas)){
+        dia[setor].linhas=dia[setor].linhas.filter(e=>e.funcId!==id);
+      }
     });
   });
-  // Mark as inactive instead of deleting (preserves history)
+
+  // Mantém o cadastro apenas como inativo para não quebrar referências históricas
   f.ativo=false;
-  saveState();renderFunc();renderDash();
+
+  saveState();
+  renderFunc();
+  renderDash();
+  refreshSelects();
   if(selectedDia)renderEscalaDia(selectedDia);
-  // Show confirmation
+  if(typeof renderEscalaMensal==='function')renderEscalaMensal();
+  if(typeof renderAprovacoes==='function')renderAprovacoes();
+  if(typeof renderPonto==='function')renderPonto();
+  if(typeof renderRelatorio==='function')renderRelatorio();
+
   const wrap=document.getElementById('func-wrap')||document.getElementById('page-funcionarios');
   if(wrap){
     const msg=document.createElement('div');
     msg.className='al al-s';msg.style.margin='0 0 12px 0';
-    msg.textContent=f.nome+' removido da escala futura.';
+    msg.textContent=f.nome+' foi removido de toda a escala e marcado como inativo.';
     wrap.insertAdjacentElement('afterbegin',msg);
     setTimeout(()=>msg.remove(),4000);
   }
@@ -4109,6 +4120,15 @@ function renderTarifas(){
     </div>`).join('');
 }
 
+function parseMoneyBR(v){
+  if(v===null||v===undefined)return 0;
+  const s=String(v).trim();
+  if(!s)return 0;
+  const norm=s.replace(/\s+/g,'').replace(/\./g,'').replace(',', '.');
+  const n=Number(norm);
+  return Number.isFinite(n)?n:0;
+}
+
 function addTipoRow(){
   const cont=document.getElementById('tr-tipos');
   if(!cont)return;
@@ -4117,11 +4137,11 @@ function addTipoRow(){
   div.style.marginBottom='8px';
   div.innerHTML=`
     <div><label style="font-size:11px">Nome do tipo</label><input type="text" placeholder="Ex: Hora extra 50%" style="font-size:13px"></div>
-    <div><label style="font-size:11px">Valor/hora (R$)</label><input type="text" placeholder="Ex: 13,28" style="font-size:13px"></div>
+    <div><label style="font-size:11px">Valor/hora (R$)</label><input type="text" inputmode="decimal" placeholder="0,00" style="font-size:13px"></div>
     <div><label style="font-size:11px">Código</label>
       <div style="display:flex;gap:6px">
         <input type="text" placeholder="HE50" style="font-size:13px;flex:1">
-        <button class="btn" style="font-size:11px;color:var(--red);padding:4px 8px;flex-shrink:0" onclick="this.closest('.fr').remove()">✕</button>
+        <button type="button" class="btn" style="font-size:11px;color:var(--red);padding:4px 8px;flex-shrink:0" onclick="this.closest('.fr').remove()">✕</button>
       </div>
     </div>`;
   cont.appendChild(div);
@@ -4129,19 +4149,24 @@ function addTipoRow(){
 
 function addTarifa(){
   const nome=document.getElementById('tr-nome')?.value.trim();
+  const desc=document.getElementById('tr-desc')?.value.trim()||'';
   const msg=document.getElementById('tr-msg');
   if(!nome){if(msg)msg.innerHTML='<div class="al al-w">Informe o nome da tabela.</div>';return;}
-  const rows=[...document.querySelectorAll('#tr-tipos .fr')];
+  const rows=[...document.querySelectorAll('#tr-tipos > .fr')];
   const tipos=rows.map(r=>{
-    const inputs=r.querySelectorAll('input');
-    const valStr=(inputs[1]?.value||'').replace(',','.');
-    return {nome:inputs[0]?.value.trim(),val:parseFloat(valStr)||0,cod:inputs[2]?.value.trim()||''};
+    const inputs=[...r.querySelectorAll('input')];
+    return {
+      nome:(inputs[0]?.value||'').trim(),
+      val:parseMoneyBR(inputs[1]?.value),
+      cod:(inputs[2]?.value||'').trim()
+    };
   }).filter(t=>t.nome&&t.val>0);
   if(!tipos.length){if(msg)msg.innerHTML='<div class="al al-w">Adicione pelo menos um tipo com nome e valor.</div>';return;}
-  if(!nextIds.tar)nextIds.tar=1;
-  tarifas.push({id:nextIds.tar++,nome,tipos});
+  if(!nextIds.t)nextIds.t=1;
+  tarifas.push({id:nextIds.t++,nome,desc,tipos});
   saveState();renderTarifas();
   if(document.getElementById('tr-nome'))document.getElementById('tr-nome').value='';
+  if(document.getElementById('tr-desc'))document.getElementById('tr-desc').value='';
   if(document.getElementById('tr-tipos'))document.getElementById('tr-tipos').innerHTML='';
   if(msg){msg.innerHTML='<div class="al al-s">Tabela salva!</div>';setTimeout(()=>{msg.innerHTML='';},2000);}
 }
@@ -4153,13 +4178,58 @@ function excluirTarifa(id){
 }
 
 // ===================== TAXAS (DIARISTAS) =====================
+function renderTaxasEstimativa(){
+  const box=document.getElementById('tx-estimativa');
+  if(!box)return;
+  const escHoje=escalas[todayStr]||{};
+  if(!taxasConfig||!taxasConfig.length){
+    box.innerHTML='<div class="al al-i">Cadastre ao menos uma tabela de taxa para gerar a estimativa de hoje.</div>';
+    return;
+  }
+  const mapa={};
+  Object.entries(escHoje).forEach(([sk,col])=>{
+    const linhas=(col&&col.linhas)||col||[];
+    const colDef=COLUNAS_ESCALA.find(c=>c.key===sk);
+    if(!colDef)return;
+    (Array.isArray(linhas)?linhas:[]).forEach(e=>{
+      if(!e||(!e.funcId&&!e.nomelivre))return;
+      let contaTaxa=false;
+      if(e.taxa&&String(e.taxa).trim())contaTaxa=true;
+      else if(e.funcId){
+        const f=getF(e.funcId);
+        if(f&&f.vinculo==='taxa')contaTaxa=true;
+      }
+      if(!contaTaxa)return;
+      const tc=taxasConfig.find(t=>t.setor===colDef.setor&&t.turno===colDef.turno)||
+               taxasConfig.find(t=>t.setor===colDef.setor);
+      if(!tc)return;
+      const k=String(tc.id);
+      if(!mapa[k])mapa[k]={nome:tc.nome,setor:tc.setor,turno:tc.turno,valor:tc.valor,qtd:0,total:0};
+      mapa[k].qtd++;
+      mapa[k].total+=Number(tc.valor)||0;
+    });
+  });
+  const itens=Object.values(mapa);
+  if(!itens.length){
+    box.innerHTML='<div class="al al-i">Nenhum diarista/taxa está alocado na escala de hoje.</div>';
+    return;
+  }
+  const total=itens.reduce((s,i)=>s+i.total,0);
+  box.innerHTML=`
+    <div class="tow"><table><thead><tr><th>Tabela</th><th>Setor</th><th>Turno</th><th>Qtd. hoje</th><th>Valor diária</th><th>Total</th></tr></thead>
+      <tbody>
+        ${itens.map(i=>`<tr><td>${i.nome}</td><td>${i.setor||'—'}</td><td>${i.turno||'—'}</td><td>${i.qtd}</td><td>R$ ${fV(i.valor)}</td><td><strong>R$ ${fV(i.total)}</strong></td></tr>`).join('')}
+      </tbody>
+    </table></div>
+    <div class="cp-total" style="margin-top:12px"><span>Total estimado hoje</span><strong>R$ ${fV(total)}</strong></div>`;
+}
+
 function renderTaxas(){
   const list=document.getElementById('tx-body');
   if(!list)return;
   if(!taxasConfig||!taxasConfig.length){
     list.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--text2);padding:16px">Nenhuma tabela cadastrada.</td></tr>';
-    const est=document.getElementById('tx-estimativa');
-    if(est)est.innerHTML='<div class="al al-i">Nenhuma tabela de taxa cadastrada.</div>';
+    renderTaxasEstimativa();
     return;
   }
   list.innerHTML=taxasConfig.map(t=>`
@@ -4170,59 +4240,20 @@ function renderTaxas(){
       <td>R$ ${fV(t.valor)}</td>
       <td><button class="btn" style="font-size:11px;color:var(--red)" onclick="excluirTaxa(${t.id})">Excluir</button></td>
     </tr>`).join('');
-
-  // Estimativa de custo de taxas hoje
-  const est=document.getElementById('tx-estimativa');
-  if(!est)return;
-  // Count taxas (non-fixo) in today's escala
-  const escHoje=escalas[todayStr]||{};
-  let totalCusto=0;
-  let linhasEst=[];
-  COLUNAS_ESCALA.forEach(col=>{
-    const linhas=(escHoje[col.key]?.linhas||[]).filter(l=>l&&(l.tipo==='taxa'||l.tipo==='horas'));
-    linhas.forEach(l=>{
-      const f=getF(l.funcId);
-      // Find matching taxa config by setor/turno
-      const tc=taxasConfig.find(t=>
-        (!t.setor||t.setor===col.setor)&&
-        (!t.turno||t.turno===f.turno||!f.turno)
-      )||taxasConfig.find(t=>!t.setor);
-      const val=tc?tc.valor:0;
-      totalCusto+=val;
-      linhasEst.push({nome:f?f.nome:l.nomelivre||'—',setor:col.setor,val});
-    });
-  });
-  if(!linhasEst.length){
-    est.innerHTML='<div class="al al-i">Nenhum diarista na escala de hoje.</div>';
-    return;
-  }
-  est.innerHTML=`
-    <div class="tow"><table style="font-size:12px"><thead><tr>
-      <th>Funcionário</th><th>Setor</th><th>Valor diária</th>
-    </tr></thead><tbody>
-      ${linhasEst.map(l=>`<tr>
-        <td>${l.nome}</td>
-        <td style="font-size:11px;color:var(--text2)">${l.setor}</td>
-        <td style="font-weight:600;color:var(--accent)">R$ ${fV(l.val)}</td>
-      </tr>`).join('')}
-    </tbody></table></div>
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-top:2px solid var(--border);margin-top:8px">
-      <span style="font-weight:600;font-size:13px">Total estimado hoje</span>
-      <span style="font-size:18px;font-weight:700;color:var(--accent)">R$ ${fV(totalCusto)}</span>
-    </div>`;
+  renderTaxasEstimativa();
 }
 
 function addTaxa(){
   const nome=document.getElementById('tx-nome')?.value.trim();
   const setor=document.getElementById('tx-setor')?.value||'';
   const turno=document.getElementById('tx-turno')?.value||'';
-  const valor=parseFloat((document.getElementById('tx-valor')?.value||'').replace(',','.'))||0;
+  const valor=parseMoneyBR(document.getElementById('tx-valor')?.value);
   const msg=document.getElementById('tx-msg');
   if(!nome){if(msg)msg.innerHTML='<div class="al al-w">Informe o nome.</div>';return;}
-  if(!valor){if(msg)msg.innerHTML='<div class="al al-w">Informe o valor da diária.</div>';return;}
+  if(!(valor>0)){if(msg)msg.innerHTML='<div class="al al-w">Informe o valor da diária.</div>';return;}
   if(!taxasConfig)taxasConfig=[];
-  if(!nextIds.tax)nextIds.tax=1;
-  taxasConfig.push({id:nextIds.tax++,nome,setor,turno,valor});
+  if(!nextIds.tx)nextIds.tx=1;
+  taxasConfig.push({id:nextIds.tx++,nome,setor,turno,valor});
   saveState();renderTaxas();
   if(document.getElementById('tx-nome'))document.getElementById('tx-nome').value='';
   if(document.getElementById('tx-valor'))document.getElementById('tx-valor').value='';
