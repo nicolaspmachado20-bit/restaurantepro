@@ -1080,6 +1080,13 @@ async function syncFromGist(){
   localLogsPrint.forEach(l=>{if(!cloudPrintTs.has(l.ts+(l.tela||'')))logsPrint.unshift(l);});
   const cloudNegTs=new Set((logsNegado||[]).map(l=>l.ts+l.motivo));
   localLogsNegado.forEach(l=>{if(!cloudNegTs.has(l.ts+l.motivo))logsNegado.unshift(l);});
+  // Re-merge logs from separate localStorage (most reliable source)
+  try{const la=localStorage.getItem('rpro_logs_acesso');if(la){
+    const localLA=JSON.parse(la);
+    const cloudTs2=new Set((logsAcesso||[]).map(l=>l.ts+l.evento));
+    localLA.forEach(l=>{if(!cloudTs2.has(l.ts+l.evento))logsAcesso.unshift(l);});
+    logsAcesso.sort((a,b)=>b.ts.localeCompare(a.ts));
+  }}catch(e){}
   showSyncInd('✓ Sincronizado!','');
   try{renderAll();}catch(e){}
   setTimeout(()=>saveToGist(S),500);
@@ -3370,6 +3377,8 @@ function addLogAcesso(evento){
   if(!currentUser)return;
   logsAcesso.unshift({ts:tsNow(),user:currentUser.nome,perfil:currentUser.perfil,evento});
   if(logsAcesso.length>500)logsAcesso.pop();
+  // Save logs immediately to localStorage (independent of cloud sync)
+  try{localStorage.setItem('rpro_logs_acesso',JSON.stringify(logsAcesso));}catch(e){}
   saveState();
 }
 
@@ -3377,6 +3386,7 @@ function addLogPrint(tela, metodo){
   const user=currentUser?currentUser.nome:'Desconhecido';
   logsPrint.unshift({ts:tsNow(),user,tela,metodo});
   if(logsPrint.length>500)logsPrint.pop();
+  try{localStorage.setItem('rpro_logs_print',JSON.stringify(logsPrint));}catch(e){}
   saveState();
   renderLogsIfOpen();
 }
@@ -3385,6 +3395,7 @@ function addLogNegado(motivo){
   const user=currentUser?currentUser.nome:(document.getElementById('login-user')?.value||'?');
   logsNegado.unshift({ts:tsNow(),user,motivo});
   if(logsNegado.length>500)logsNegado.pop();
+  try{localStorage.setItem('rpro_logs_negado',JSON.stringify(logsNegado));}catch(e){}
   saveState();
 }
 
