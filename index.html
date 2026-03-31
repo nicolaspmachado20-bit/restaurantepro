@@ -3301,18 +3301,18 @@ function renderFolgas(){
 }
 
 // ===================== CARREGAR PADRÃO (com folgas) =====================
-function carregarPadrao(){
-  console.log('[CPP] start, selectedDia=', selectedDia);
-  if(!selectedDia){alert('Selecione um dia primeiro.');return;}
-  const d=new Date(selectedDia+'T12:00:00');
+function carregarPadraoDia(dateKey){
+  // Load standard scale for a single day - only future or today
+  const hoje=new Date(); hoje.setHours(0,0,0,0);
+  const d=new Date(dateKey+'T12:00:00');
+  if(d<hoje)return 0; // skip past days
   const dow=d.getDay();
   const diaNum=d.getDate();
   const mes=d.getMonth();
   const ano=d.getFullYear();
-  const ok=confirm('Carregar padrão para '+DIAS_SEMANA[dow]+', '+fDate(selectedDia)+'?\nDados existentes serão substituídos.');
-  if(!ok)return;
-  if(!escalas[selectedDia])escalas[selectedDia]={};
   const NOITE=['noite','salao_noite','fechamento'];
+  if(!escalas[dateKey])escalas[dateKey]={};
+  let total=0;
   COLUNAS_ESCALA.forEach(function(col){
     var isDia=col.key.indexOf('_dia')>=0;
     var linhas=[];
@@ -3321,32 +3321,75 @@ function carregarPadrao(){
       if(!f.ativo||f.vinculo!=='fixo')continue;
       if(f.setor!==col.setor)continue;
       var t=f.turno||'almoco';
-      // Skip night workers from DIA, skip day workers from NOITE
       var isNight=NOITE.indexOf(t)>=0;
       if(isDia&&isNight)continue;
       if(!isDia&&!isNight&&t!=='intermediario'&&t!=='flex')continue;
-      // Check folgas
       if(isFolga(f.id,diaNum,mes,ano))continue;
       var fs=f.folgas_semanais||[];
       if(fs.indexOf(dow)>=0)continue;
       linhas.push({funcId:f.id,nomelivre:'',tipo:'fixo',isPendente:false,heAuth:false});
     }
-    console.log('[CPP]',col.key,'->',linhas.length,'pessoas');
-    escalas[selectedDia][col.key]={linhas:linhas};
+    escalas[dateKey][col.key]={linhas:linhas};
+    total+=linhas.length;
   });
+  return total;
+}
 
-  saveState();
-  renderEscalaDia(selectedDia);
-  renderDayTabs();
+function carregarPadrao(){
+  // Ask: single day or entire month?
+  const mesAtual=escalaMes;
+  const anoAtual=escalaAno;
+  const hoje=new Date(); hoje.setHours(0,0,0,0);
+  const nomeMes=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'][mesAtual];
 
-  // Show success
-  const wrap=document.getElementById('escala-dia-wrap');
-  if(wrap){
-    const msg=document.createElement('div');
-    msg.className='al al-s';msg.style.marginBottom='8px';
-    msg.innerHTML='<strong>Padrão carregado!</strong> Fixos em folga foram excluídos automaticamente. Revise e salve a escala.';
-    wrap.insertAdjacentElement('afterbegin',msg);
-    setTimeout(()=>msg.remove(),5000);
+  const opcao=confirm(
+    'Carregar padrão para o MÊS TODO de '+nomeMes+'/'+anoAtual+'?\n\n'+
+    'OK = Mês todo (apenas dias de hoje em diante)\n'+
+    'Cancelar = Somente o dia selecionado ('+fDate(selectedDia)+')'
+  );
+
+  const hoje2=new Date(); hoje2.setHours(0,0,0,0);
+
+  if(opcao){
+    // Load entire month from today onwards
+    const diasNoMes=new Date(anoAtual,mesAtual+1,0).getDate();
+    let diasCarregados=0;
+    for(let dia=1;dia<=diasNoMes;dia++){
+      const dk=`${anoAtual}-${String(mesAtual+1).padStart(2,'0')}-${String(dia).padStart(2,'0')}`;
+      const loaded=carregarPadraoDia(dk);
+      if(loaded>=0)diasCarregados++;
+    }
+    saveState();
+    renderEscalaDia(selectedDia);
+    renderDayTabs();
+    const wrap=document.getElementById('escala-dia-wrap');
+    if(wrap){
+      const msg=document.createElement('div');
+      msg.className='al al-s';msg.style.marginBottom='8px';
+      msg.innerHTML='<strong>Padrão carregado para o mês todo!</strong> Dias passados foram ignorados. Revise se necessário.';
+      wrap.insertAdjacentElement('afterbegin',msg);
+      setTimeout(()=>msg.remove(),6000);
+    }
+  } else {
+    // Single day
+    if(!selectedDia){alert('Selecione um dia primeiro.');return;}
+    const d=new Date(selectedDia+'T12:00:00');
+    if(d<hoje2){
+      alert('Não é possível carregar o padrão para datas passadas.');
+      return;
+    }
+    carregarPadraoDia(selectedDia);
+    saveState();
+    renderEscalaDia(selectedDia);
+    renderDayTabs();
+    const wrap=document.getElementById('escala-dia-wrap');
+    if(wrap){
+      const msg=document.createElement('div');
+      msg.className='al al-s';msg.style.marginBottom='8px';
+      msg.innerHTML='<strong>Padrão carregado!</strong> Fixos em folga foram excluídos automaticamente.';
+      wrap.insertAdjacentElement('afterbegin',msg);
+      setTimeout(()=>msg.remove(),5000);
+    }
   }
 }
 
@@ -3897,11 +3940,30 @@ function addFunc(){
 function excluirFunc(id){
   const f=funcionarios.find(x=>x.id===id);
   if(!f)return;
-  if(!confirm('Excluir '+f.nome+'? Esta ação não pode ser desfeita.'))return;
-  Object.values(escalas).forEach(dia=>{Object.keys(dia).forEach(setor=>{if(dia[setor]?.linhas)dia[setor].linhas=dia[setor].linhas.filter(e=>e.funcId!==id);});});
-  funcionarios=funcionarios.filter(x=>x.id!==id);
-  S.funcionarios=funcionarios;
+  if(!confirm('Excluir '+f.nome+'?\nO funcionário será removido da escala de todos os dias futuros. Esta ação não pode ser desfeita.'))return;
+  const hoje=new Date(); hoje.setHours(0,0,0,0);
+  // Remove from future escala days only (keep past for history)
+  Object.keys(escalas).forEach(dateKey=>{
+    const d=new Date(dateKey+'T12:00:00');
+    if(d<hoje)return; // keep past data intact
+    const dia=escalas[dateKey];
+    Object.keys(dia).forEach(setor=>{
+      if(dia[setor]?.linhas)dia[setor].linhas=dia[setor].linhas.filter(e=>e.funcId!==id);
+    });
+  });
+  // Mark as inactive instead of deleting (preserves history)
+  f.ativo=false;
   saveState();renderFunc();renderDash();
+  if(selectedDia)renderEscalaDia(selectedDia);
+  // Show confirmation
+  const wrap=document.getElementById('func-wrap')||document.getElementById('page-funcionarios');
+  if(wrap){
+    const msg=document.createElement('div');
+    msg.className='al al-s';msg.style.margin='0 0 12px 0';
+    msg.textContent=f.nome+' removido da escala futura.';
+    wrap.insertAdjacentElement('afterbegin',msg);
+    setTimeout(()=>msg.remove(),4000);
+  }
 }
 
 function abrirEditFolgas(funcId){
