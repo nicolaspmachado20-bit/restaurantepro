@@ -4090,49 +4090,58 @@ window.addEventListener('resize',()=>{
 });
 
 
+
 // ===================== TARIFAS H.E. =====================
 function renderTarifas(){
-  const list=document.getElementById('tarifas-list');
+  const list=document.getElementById('tar-list');
   if(!list)return;
-  if(!tarifas.length){list.innerHTML='<div class="al al-i">Nenhuma tabela cadastrada.</div>';return;}
+  if(!tarifas||!tarifas.length){list.innerHTML='<div class="al al-i">Nenhuma tabela cadastrada.</div>';return;}
   list.innerHTML=tarifas.map(t=>`
     <div class="card" style="margin-bottom:10px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-        <div style="font-weight:600;font-size:14px">${t.nome} <span style="font-size:11px;color:var(--text2);font-weight:400">— ${t.setor||'Todos'}</span></div>
+        <div style="font-weight:600;font-size:14px">${t.nome}</div>
         <button class="btn" style="font-size:11px;color:var(--red)" onclick="excluirTarifa(${t.id})">Excluir</button>
       </div>
-      <div class="tow"><table style="font-size:12px"><thead><tr><th>Tipo</th><th>Multiplicador</th></tr></thead><tbody>
-        ${(t.tipos||[]).map(tp=>`<tr><td>${tp.nome}</td><td>${tp.val}x</td></tr>`).join('')}
-      </tbody></table></div>
+      <div class="tow"><table style="font-size:12px;width:100%">
+        <thead><tr><th>Tipo</th><th>Valor/hora</th><th>Código</th></tr></thead>
+        <tbody>${(t.tipos||[]).map(tp=>`<tr><td>${tp.nome}</td><td>R$ ${fV(tp.val)}</td><td>${tp.cod||''}</td></tr>`).join('')}</tbody>
+      </table></div>
     </div>`).join('');
 }
 
 function addTipoRow(){
-  const cont=document.getElementById('tipos-cont');
+  const cont=document.getElementById('tr-tipos');
   if(!cont)return;
   const div=document.createElement('div');
-  div.style.cssText='display:flex;gap:8px;margin-bottom:6px;align-items:center';
-  div.innerHTML=`<input type="text" placeholder="Ex: Hora extra 50%" style="flex:1;font-size:13px">
-    <input type="number" placeholder="1.5" step="0.1" min="1" style="width:80px;font-size:13px">
-    <button class="btn" style="font-size:11px;color:var(--red);padding:4px 8px" onclick="this.parentElement.remove()">✕</button>`;
+  div.className='fr c3';
+  div.style.marginBottom='8px';
+  div.innerHTML=`
+    <div><label style="font-size:11px">Nome do tipo</label><input type="text" placeholder="Ex: Hora extra 50%" style="font-size:13px"></div>
+    <div><label style="font-size:11px">Valor/hora (R$)</label><input type="number" placeholder="0,00" step="0.01" style="font-size:13px"></div>
+    <div><label style="font-size:11px">Código</label>
+      <div style="display:flex;gap:6px">
+        <input type="text" placeholder="HE50" style="font-size:13px;flex:1">
+        <button class="btn" style="font-size:11px;color:var(--red);padding:4px 8px;flex-shrink:0" onclick="this.closest('.fr').remove()">✕</button>
+      </div>
+    </div>`;
   cont.appendChild(div);
 }
 
 function addTarifa(){
   const nome=document.getElementById('tr-nome')?.value.trim();
-  const setor=document.getElementById('tr-setor')?.value||'';
   const msg=document.getElementById('tr-msg');
   if(!nome){if(msg)msg.innerHTML='<div class="al al-w">Informe o nome da tabela.</div>';return;}
-  const rows=[...document.querySelectorAll('#tipos-cont > div')];
+  const rows=[...document.querySelectorAll('#tr-tipos .fr')];
   const tipos=rows.map(r=>{
     const inputs=r.querySelectorAll('input');
-    return {nome:inputs[0]?.value.trim(),val:parseFloat(inputs[1]?.value)||1.5};
-  }).filter(t=>t.nome);
-  if(!tipos.length){if(msg)msg.innerHTML='<div class="al al-w">Adicione pelo menos um tipo.</div>';return;}
-  tarifas.push({id:nextIds.tar++,nome,setor,tipos});
+    return {nome:inputs[0]?.value.trim(),val:parseFloat(inputs[1]?.value)||0,cod:inputs[2]?.value.trim()||''};
+  }).filter(t=>t.nome&&t.val>0);
+  if(!tipos.length){if(msg)msg.innerHTML='<div class="al al-w">Adicione pelo menos um tipo com nome e valor.</div>';return;}
+  if(!nextIds.tar)nextIds.tar=1;
+  tarifas.push({id:nextIds.tar++,nome,tipos});
   saveState();renderTarifas();
   if(document.getElementById('tr-nome'))document.getElementById('tr-nome').value='';
-  if(document.getElementById('tipos-cont'))document.getElementById('tipos-cont').innerHTML='';
+  if(document.getElementById('tr-tipos'))document.getElementById('tr-tipos').innerHTML='';
   if(msg){msg.innerHTML='<div class="al al-s">Tabela salva!</div>';setTimeout(()=>{msg.innerHTML='';},2000);}
 }
 
@@ -4144,28 +4153,30 @@ function excluirTarifa(id){
 
 // ===================== TAXAS (DIARISTAS) =====================
 function renderTaxas(){
-  const list=document.getElementById('taxas-list');
+  const list=document.getElementById('tx-body');
   if(!list)return;
-  if(!taxasConfig||!taxasConfig.length){list.innerHTML='<div class="al al-i">Nenhuma tabela cadastrada.</div>';return;}
+  if(!taxasConfig||!taxasConfig.length){list.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--text2);padding:16px">Nenhuma tabela cadastrada.</td></tr>';return;}
   list.innerHTML=taxasConfig.map(t=>`
-    <div class="card" style="margin-bottom:10px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-        <div style="font-weight:600;font-size:14px">${t.nome} <span style="font-size:11px;color:var(--text2)">— ${t.setor||'Todos'}</span></div>
-        <button class="btn" style="font-size:11px;color:var(--red)" onclick="excluirTaxa(${t.id})">Excluir</button>
-      </div>
-      <div style="font-size:13px">Valor: <strong>R$ ${fV(t.valor)}</strong> por dia</div>
-    </div>`).join('');
+    <tr>
+      <td>${t.nome}</td>
+      <td>${t.setor||'—'}</td>
+      <td>${t.turno||'—'}</td>
+      <td>R$ ${fV(t.valor)}</td>
+      <td><button class="btn" style="font-size:11px;color:var(--red)" onclick="excluirTaxa(${t.id})">Excluir</button></td>
+    </tr>`).join('');
 }
 
 function addTaxa(){
   const nome=document.getElementById('tx-nome')?.value.trim();
   const setor=document.getElementById('tx-setor')?.value||'';
+  const turno=document.getElementById('tx-turno')?.value||'';
   const valor=parseFloat(document.getElementById('tx-valor')?.value)||0;
   const msg=document.getElementById('tx-msg');
-  if(!nome||!valor){if(msg)msg.innerHTML='<div class="al al-w">Preencha nome e valor.</div>';return;}
+  if(!nome){if(msg)msg.innerHTML='<div class="al al-w">Informe o nome.</div>';return;}
+  if(!valor){if(msg)msg.innerHTML='<div class="al al-w">Informe o valor da diária.</div>';return;}
   if(!taxasConfig)taxasConfig=[];
   if(!nextIds.tax)nextIds.tax=1;
-  taxasConfig.push({id:nextIds.tax++,nome,setor,valor});
+  taxasConfig.push({id:nextIds.tax++,nome,setor,turno,valor});
   saveState();renderTaxas();
   if(document.getElementById('tx-nome'))document.getElementById('tx-nome').value='';
   if(document.getElementById('tx-valor'))document.getElementById('tx-valor').value='';
