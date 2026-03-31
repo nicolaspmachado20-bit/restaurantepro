@@ -699,7 +699,7 @@ label{font-size:11px;color:var(--text2);margin-bottom:4px;display:block;font-wei
       </div>
     </div>
     <div class="fr c2">
-      <div><label>Valor da diária (R$)</label><input type="number" id="tx-valor" placeholder="0,00" step="0.01"></div>
+      <div><label>Valor da diária (R$)</label><input type="text" id="tx-valor" placeholder="Ex: 120,00"></div>
       <div style="display:flex;align-items:flex-end"><button class="btn btn-p" style="width:100%" onclick="addTaxa()">+ Criar tabela</button></div>
     </div>
     <div id="tx-msg"></div>
@@ -3041,7 +3041,7 @@ function renderAll(){
 
 // Seed tarifas rows
 const trTipos=document.getElementById('tr-tipos');
-if(trTipos)trTipos.innerHTML=`<div class="fr c3" style="margin-bottom:6px"><div><label>Nome do tipo</label><input type="text" placeholder="Ex: H.E. 50%" class="ti-n"></div><div><label>Valor/hora (R$)</label><input type="number" placeholder="0,00" step="0.01" class="ti-v"></div><div><label>Código</label><input type="text" placeholder="HE50" class="ti-c"></div></div>`;
+if(trTipos)trTipos.innerHTML=`<div class="fr c3" style="margin-bottom:6px"><div><label>Nome do tipo</label><input type="text" placeholder="Ex: H.E. 50%" class="ti-n"></div><div><label>Valor/hora (R$)</label><input type="text" placeholder="Ex: 13,28" class="ti-v"></div><div><label>Código</label><input type="text" placeholder="HE50" class="ti-c"></div></div>`;
 
 // Populate mes/ano
 const escMes=document.getElementById('escala-mes');
@@ -4117,7 +4117,7 @@ function addTipoRow(){
   div.style.marginBottom='8px';
   div.innerHTML=`
     <div><label style="font-size:11px">Nome do tipo</label><input type="text" placeholder="Ex: Hora extra 50%" style="font-size:13px"></div>
-    <div><label style="font-size:11px">Valor/hora (R$)</label><input type="number" placeholder="0,00" step="0.01" style="font-size:13px"></div>
+    <div><label style="font-size:11px">Valor/hora (R$)</label><input type="text" placeholder="Ex: 13,28" style="font-size:13px"></div>
     <div><label style="font-size:11px">Código</label>
       <div style="display:flex;gap:6px">
         <input type="text" placeholder="HE50" style="font-size:13px;flex:1">
