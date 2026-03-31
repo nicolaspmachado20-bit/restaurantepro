@@ -4089,6 +4089,95 @@ window.addEventListener('resize',()=>{
   fixMobileLayout();
 });
 
+
+// ===================== TARIFAS H.E. =====================
+function renderTarifas(){
+  const list=document.getElementById('tarifas-list');
+  if(!list)return;
+  if(!tarifas.length){list.innerHTML='<div class="al al-i">Nenhuma tabela cadastrada.</div>';return;}
+  list.innerHTML=tarifas.map(t=>`
+    <div class="card" style="margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div style="font-weight:600;font-size:14px">${t.nome} <span style="font-size:11px;color:var(--text2);font-weight:400">— ${t.setor||'Todos'}</span></div>
+        <button class="btn" style="font-size:11px;color:var(--red)" onclick="excluirTarifa(${t.id})">Excluir</button>
+      </div>
+      <div class="tow"><table style="font-size:12px"><thead><tr><th>Tipo</th><th>Multiplicador</th></tr></thead><tbody>
+        ${(t.tipos||[]).map(tp=>`<tr><td>${tp.nome}</td><td>${tp.val}x</td></tr>`).join('')}
+      </tbody></table></div>
+    </div>`).join('');
+}
+
+function addTipoRow(){
+  const cont=document.getElementById('tipos-cont');
+  if(!cont)return;
+  const div=document.createElement('div');
+  div.style.cssText='display:flex;gap:8px;margin-bottom:6px;align-items:center';
+  div.innerHTML=`<input type="text" placeholder="Ex: Hora extra 50%" style="flex:1;font-size:13px">
+    <input type="number" placeholder="1.5" step="0.1" min="1" style="width:80px;font-size:13px">
+    <button class="btn" style="font-size:11px;color:var(--red);padding:4px 8px" onclick="this.parentElement.remove()">✕</button>`;
+  cont.appendChild(div);
+}
+
+function addTarifa(){
+  const nome=document.getElementById('tr-nome')?.value.trim();
+  const setor=document.getElementById('tr-setor')?.value||'';
+  const msg=document.getElementById('tr-msg');
+  if(!nome){if(msg)msg.innerHTML='<div class="al al-w">Informe o nome da tabela.</div>';return;}
+  const rows=[...document.querySelectorAll('#tipos-cont > div')];
+  const tipos=rows.map(r=>{
+    const inputs=r.querySelectorAll('input');
+    return {nome:inputs[0]?.value.trim(),val:parseFloat(inputs[1]?.value)||1.5};
+  }).filter(t=>t.nome);
+  if(!tipos.length){if(msg)msg.innerHTML='<div class="al al-w">Adicione pelo menos um tipo.</div>';return;}
+  tarifas.push({id:nextIds.tar++,nome,setor,tipos});
+  saveState();renderTarifas();
+  if(document.getElementById('tr-nome'))document.getElementById('tr-nome').value='';
+  if(document.getElementById('tipos-cont'))document.getElementById('tipos-cont').innerHTML='';
+  if(msg){msg.innerHTML='<div class="al al-s">Tabela salva!</div>';setTimeout(()=>{msg.innerHTML='';},2000);}
+}
+
+function excluirTarifa(id){
+  if(!confirm('Excluir esta tabela?'))return;
+  tarifas=tarifas.filter(t=>t.id!==id);
+  saveState();renderTarifas();
+}
+
+// ===================== TAXAS (DIARISTAS) =====================
+function renderTaxas(){
+  const list=document.getElementById('taxas-list');
+  if(!list)return;
+  if(!taxasConfig||!taxasConfig.length){list.innerHTML='<div class="al al-i">Nenhuma tabela cadastrada.</div>';return;}
+  list.innerHTML=taxasConfig.map(t=>`
+    <div class="card" style="margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div style="font-weight:600;font-size:14px">${t.nome} <span style="font-size:11px;color:var(--text2)">— ${t.setor||'Todos'}</span></div>
+        <button class="btn" style="font-size:11px;color:var(--red)" onclick="excluirTaxa(${t.id})">Excluir</button>
+      </div>
+      <div style="font-size:13px">Valor: <strong>R$ ${fV(t.valor)}</strong> por dia</div>
+    </div>`).join('');
+}
+
+function addTaxa(){
+  const nome=document.getElementById('tx-nome')?.value.trim();
+  const setor=document.getElementById('tx-setor')?.value||'';
+  const valor=parseFloat(document.getElementById('tx-valor')?.value)||0;
+  const msg=document.getElementById('tx-msg');
+  if(!nome||!valor){if(msg)msg.innerHTML='<div class="al al-w">Preencha nome e valor.</div>';return;}
+  if(!taxasConfig)taxasConfig=[];
+  if(!nextIds.tax)nextIds.tax=1;
+  taxasConfig.push({id:nextIds.tax++,nome,setor,valor});
+  saveState();renderTaxas();
+  if(document.getElementById('tx-nome'))document.getElementById('tx-nome').value='';
+  if(document.getElementById('tx-valor'))document.getElementById('tx-valor').value='';
+  if(msg){msg.innerHTML='<div class="al al-s">Tabela salva!</div>';setTimeout(()=>{msg.innerHTML='';},2000);}
+}
+
+function excluirTaxa(id){
+  if(!confirm('Excluir esta tabela?'))return;
+  taxasConfig=taxasConfig.filter(t=>t.id!==id);
+  saveState();renderTaxas();
+}
+
 </script>
 <!-- MOBILE BOTTOM NAV (shown on small screens) -->
 <div id="mobile-nav" style="display:none;position:fixed;bottom:0;left:0;right:0;height:56px;background:#1c1a17;z-index:9998;border-top:1px solid #333">
