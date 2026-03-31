@@ -4156,7 +4156,12 @@ function excluirTarifa(id){
 function renderTaxas(){
   const list=document.getElementById('tx-body');
   if(!list)return;
-  if(!taxasConfig||!taxasConfig.length){list.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--text2);padding:16px">Nenhuma tabela cadastrada.</td></tr>';return;}
+  if(!taxasConfig||!taxasConfig.length){
+    list.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--text2);padding:16px">Nenhuma tabela cadastrada.</td></tr>';
+    const est=document.getElementById('tx-estimativa');
+    if(est)est.innerHTML='<div class="al al-i">Nenhuma tabela de taxa cadastrada.</div>';
+    return;
+  }
   list.innerHTML=taxasConfig.map(t=>`
     <tr>
       <td>${t.nome}</td>
@@ -4165,6 +4170,46 @@ function renderTaxas(){
       <td>R$ ${fV(t.valor)}</td>
       <td><button class="btn" style="font-size:11px;color:var(--red)" onclick="excluirTaxa(${t.id})">Excluir</button></td>
     </tr>`).join('');
+
+  // Estimativa de custo de taxas hoje
+  const est=document.getElementById('tx-estimativa');
+  if(!est)return;
+  // Count taxas (non-fixo) in today's escala
+  const escHoje=escalas[todayStr]||{};
+  let totalCusto=0;
+  let linhasEst=[];
+  COLUNAS_ESCALA.forEach(col=>{
+    const linhas=(escHoje[col.key]?.linhas||[]).filter(l=>l&&(l.tipo==='taxa'||l.tipo==='horas'));
+    linhas.forEach(l=>{
+      const f=getF(l.funcId);
+      // Find matching taxa config by setor/turno
+      const tc=taxasConfig.find(t=>
+        (!t.setor||t.setor===col.setor)&&
+        (!t.turno||t.turno===f.turno||!f.turno)
+      )||taxasConfig.find(t=>!t.setor);
+      const val=tc?tc.valor:0;
+      totalCusto+=val;
+      linhasEst.push({nome:f?f.nome:l.nomelivre||'—',setor:col.setor,val});
+    });
+  });
+  if(!linhasEst.length){
+    est.innerHTML='<div class="al al-i">Nenhum diarista na escala de hoje.</div>';
+    return;
+  }
+  est.innerHTML=`
+    <div class="tow"><table style="font-size:12px"><thead><tr>
+      <th>Funcionário</th><th>Setor</th><th>Valor diária</th>
+    </tr></thead><tbody>
+      ${linhasEst.map(l=>`<tr>
+        <td>${l.nome}</td>
+        <td style="font-size:11px;color:var(--text2)">${l.setor}</td>
+        <td style="font-weight:600;color:var(--accent)">R$ ${fV(l.val)}</td>
+      </tr>`).join('')}
+    </tbody></table></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-top:2px solid var(--border);margin-top:8px">
+      <span style="font-weight:600;font-size:13px">Total estimado hoje</span>
+      <span style="font-size:18px;font-weight:700;color:var(--accent)">R$ ${fV(totalCusto)}</span>
+    </div>`;
 }
 
 function addTaxa(){
