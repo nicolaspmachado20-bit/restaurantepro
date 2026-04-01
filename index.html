@@ -4150,19 +4150,18 @@ function renderTaxas(){
   let padrao=taxasConfig.find(t=>t.tipo==='padrao');
   let inter=taxasConfig.find(t=>t.tipo==='inter');
   
-  // If old format, migrate
-  if(!padrao&&!inter&&taxasConfig.length){
-    const vals=taxasConfig.map(t=>t.valor).filter(v=>v>0).sort((a,b)=>a-b);
+  // If old format (no tipo field), migrate automatically
+  if((!padrao||!inter)&&taxasConfig.length){
+    const vals=taxasConfig.filter(t=>t.valor>0).sort((a,b)=>a.valor-b.valor);
     if(vals.length>=2){
-      padrao={id:1,nome:'Padrão',tipo:'padrao',valor:vals[0]};
-      inter={id:2,nome:'Intermediário',tipo:'inter',valor:vals[1]};
+      padrao={id:1,nome:'Padrão',tipo:'padrao',valor:vals[0].valor};
+      inter={id:2,nome:'Intermediário',tipo:'inter',valor:vals[1].valor};
     } else if(vals.length===1){
-      padrao={id:1,nome:'Padrão',tipo:'padrao',valor:vals[0]};
+      padrao={id:1,nome:'Padrão',tipo:'padrao',valor:vals[0].valor};
+      inter=null;
     }
-    if(padrao||inter){
-      taxasConfig=[padrao,inter].filter(Boolean);
-      saveState();
-    }
+    taxasConfig=[padrao,inter].filter(Boolean);
+    saveState();
   }
 
   // Fill input fields
@@ -4175,14 +4174,17 @@ function renderTaxas(){
   const est=document.getElementById('tx-estimativa');
   if(!est)return;
   const escHoje=escalas[todayStr]||{};
+  console.log('[TAXA] todayStr=',todayStr,'escHoje keys=',Object.keys(escHoje));
   let totalCusto=0;
   let linhasEst=[];
   COLUNAS_ESCALA.forEach(col=>{
-    const linhas=(escHoje[col.key]?.linhas||[]).filter(l=>l&&(l.tipo==='taxa'||l.tipo==='horas'));
+    const allLinhas=(escHoje[col.key]?.linhas||[]);
+    console.log('[TAXA] col=',col.key,'linhas=',JSON.stringify(allLinhas));
+    const linhas=allLinhas.filter(l=>l&&l.tipo==='taxa');
     linhas.forEach(l=>{
       const f=l.funcId?getF(l.funcId):null;
       const nome=(f&&f.nome)?f.nome:(l.nomelivre&&l.nomelivre.trim()?l.nomelivre.trim():'Diarista');
-      const isInter=(f&&f.turno==='intermediario')||col.key.indexOf('inter')>=0;
+      const isInter=f&&(f.turno==='intermediario'||f.turno==='salao_inter'||f.turno==='inter');
       const tc=isInter?inter:padrao;
       const val=tc?tc.valor:0;
       totalCusto+=val;
@@ -4232,7 +4234,7 @@ function salvarTaxaSimples(){
   const inter=parseFloat((document.getElementById('tx-inter')?.value||'').replace(',','.'))||0;
   const msg=document.getElementById('tx-msg');
   if(!padrao&&!inter){if(msg)msg.innerHTML='<div class="al al-w">Informe pelo menos um valor.</div>';return;}
-  // Store as simple config in taxasConfig
+  // Always overwrite with new format including tipo field
   taxasConfig=[
     {id:1,nome:'Padrão',tipo:'padrao',valor:padrao},
     {id:2,nome:'Intermediário',tipo:'inter',valor:inter}
