@@ -1789,6 +1789,94 @@ function solicitarLinhaExtra(dateKey,colKey){
   alert('Solicitação enviada! Você receberá notificação para aprovar. Se não aprovar até 00:00, será aceita automaticamente.');
 }
 
+function gerarPDFEscala(){
+  const dateKey=selectedDia;
+  if(!dateKey){alert('Selecione um dia primeiro.');return;}
+  const d=new Date(dateKey+'T12:00:00');
+  const titulo=`Escala do dia — ${DIAS_SEMANA[d.getDay()]}, ${fDate(dateKey)}`;
+  
+  let html=`<html><head><meta charset="UTF-8">
+  <style>
+    body{font-family:Arial,sans-serif;font-size:12px;margin:20px;color:#1c1a17}
+    h1{font-size:16px;margin-bottom:4px;color:#2d5a27}
+    h2{font-size:11px;color:#888;margin-bottom:16px;font-weight:400}
+    table{width:100%;border-collapse:collapse;margin-bottom:16px}
+    th{background:#2d5a27;color:#fff;padding:6px 10px;text-align:left;font-size:11px}
+    td{padding:6px 10px;border-bottom:1px solid #eee;font-size:12px}
+    .setor{font-weight:700;font-size:13px;margin:12px 0 4px;color:#444}
+    .badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600}
+    .fixo{background:#e8f0e8;color:#2d5a27}
+    .taxa{background:#ede8ff;color:#534AB7}
+    .horas{background:#fff3cd;color:#854F0B}
+    @media print{button{display:none}}
+  </style></head><body>
+  <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+    <button onclick="window.print()" style="padding:8px 20px;background:#2d5a27;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px">🖨 Imprimir / Salvar PDF</button>
+
+  </div>
+
+  <h1>${titulo}</h1>
+  <h2>Gerado em ${new Date().toLocaleString('pt-BR')}</h2>`;
+
+  COLUNAS_ESCALA.forEach(col=>{
+    const linhas=getLinhas(dateKey,col.key).filter(l=>l&&(l.funcId||l.nomelivre));
+    if(!linhas.length)return;
+    html+=`<div class="setor">${col.label}</div>
+    <table><thead><tr><th>Nome</th><th>Vínculo</th><th>Turno</th></tr></thead><tbody>`;
+    // Only show fixos + approved taxa/horas
+    const linhasAprov=linhas.filter(l=>{
+      const tipo=l.tipo||'fixo';
+      if(tipo==='fixo')return true;
+      return l.aprovacao==='aprovado';
+    });
+    if(!linhasAprov.length)return;
+    linhasAprov.forEach(l=>{
+      const f=l.funcId&&l.funcId!=='livre'?getF(l.funcId):null;
+      const nome=f?f.nome:(l.nomelivre||'—');
+      const tipo=l.tipo||'fixo';
+      html+=`<tr><td>${nome}</td><td><span class="badge ${tipo}">${tipo.toUpperCase()}</span></td><td>${col.label}</td></tr>`;
+    });
+    html+=`</tbody></table>`;
+  });
+  html+=`</body></html>`;
+  
+  const w=window.open('','_blank','width=800,height=600');
+  w.document.write(html);
+  w.document.close();
+}
+
+async function compartilharEscalaTexto(){
+  const dateKey=selectedDia;
+  if(!dateKey){alert('Selecione um dia primeiro.');return;}
+  const d=new Date(dateKey+'T12:00:00');
+  let txt=`📋 *Escala do dia — ${DIAS_SEMANA[d.getDay()]}, ${fDate(dateKey)}*\n\n`;
+  COLUNAS_ESCALA.forEach(col=>{
+    const linhas=getLinhas(dateKey,col.key).filter(l=>l&&(l.funcId||l.nomelivre));
+    const aprovados=linhas.filter(l=>{
+      const tipo=l.tipo||'fixo';
+      return tipo==='fixo'||l.aprovacao==='aprovado';
+    });
+    if(!aprovados.length)return;
+    txt+=`*${col.label}*\n`;
+    aprovados.forEach(l=>{
+      const f=l.funcId&&l.funcId!=='livre'?getF(l.funcId):null;
+      const nome=f?f.nome:(l.nomelivre||'—');
+      txt+=`• ${nome}\n`;
+    });
+    txt+='\n';
+  });
+  try{
+    if(navigator.share){
+      await navigator.share({title:'Escala do dia',text:txt});
+    } else {
+      await navigator.clipboard.writeText(txt);
+      alert('Escala copiada! Cole no WhatsApp.');
+    }
+  }catch(e){
+    prompt('Copie o texto abaixo:',txt);
+  }
+}
+
 function salvarEscalaDia(){
   if(!selectedDia)return;
   gerarPedidoEscala(selectedDia);
@@ -1977,7 +2065,10 @@ function renderAprovTabs(){
     COLUNAS_ESCALA.forEach(col=>{
       const qp=quadroD[col.key]||0;
       const linhas=getLinhas(dateKey,col.key).filter(l=>l&&(l.funcId||l.nomelivre));
-      if(linhas.slice(qp).some(l=>l.tipo!=='fixo'&&!l.aprovacao))hasAboveQuotaPend=true;
+      // Pending = any taxa/horas without decision, OR fixos above quota without decision
+      const hasTaxaHoras=linhas.some(l=>(l.tipo==='taxa'||l.tipo==='horas')&&!l.aprovacao);
+      const hasFixosAbove=linhas.slice(qp).some(l=>(l.tipo==='fixo'||!l.tipo)&&!l.aprovacao);
+      if(hasTaxaHoras||hasFixosAbove)hasAboveQuotaPend=true;
     });
     const hasPend=hasAboveQuotaPend||pedidos.some(p=>p.status==='pendente')||hesDia.some(e=>e.status==='pendente');
     const hasConcl=pedidos.length>0||hesDia.length>0||COLUNAS_ESCALA.some(col=>{
@@ -2063,7 +2154,11 @@ function renderAprovDiaContent(dateKey){
     COLUNAS_ESCALA.forEach(col=>{
       const qp=quadro[col.key]||0;
       const allLinhas=getLinhas(dateKey,col.key).filter(l=>l&&(l.funcId||l.nomelivre));
-      const extraLinhas=allLinhas.slice(qp);
+      // Show ALL taxa and horas lines (not just above quota)
+      // Plus any fixos above quota
+      const taxaHorasLinhas=allLinhas.filter(l=>l.tipo==='taxa'||l.tipo==='horas');
+      const fixosAcimaQuota=allLinhas.slice(qp).filter(l=>l.tipo==='fixo'||!l.tipo);
+      const extraLinhas=[...taxaHorasLinhas,...fixosAcimaQuota];
       const pedido=pedidosEscala.find(p=>p.data===dateKey&&p.setorKey===col.key);
       extraLinhas.forEach((l,i)=>{
         const f=l.funcId&&l.funcId!=='livre'?getF(l.funcId):null;
