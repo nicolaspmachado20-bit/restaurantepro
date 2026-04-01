@@ -682,32 +682,23 @@ label{font-size:11px;color:var(--text2);margin-bottom:4px;display:block;font-wei
 <!-- ===== TAXAS ===== -->
 <div class="page" id="page-taxas">
   <div class="ph">Valores de taxa (diarista)</div>
-  <div class="ps">Defina quanto paga por diária em cada setor/turno. Serve para calcular o custo estimado do dia.</div>
+  <div class="ps">Defina o valor da diária padrão e intermediário. Aplicado a todos os diaristas independente de setor.</div>
   <div class="card">
-    <div class="card-title">Nova tabela de taxa</div>
-    <div class="fr c3">
-      <div><label>Nome / Descrição</label><input type="text" id="tx-nome" placeholder="Ex: Taxa cozinha noite"></div>
-      <div><label>Setor</label>
-        <select id="tx-setor">
-          <option value="cozinha">Cozinha</option><option value="salao">Salão/Delivery</option><option value="limpeza">Limpeza</option>
-        </select>
+    <div class="card-title">Valores de diária</div>
+    <div class="fr" style="gap:16px;align-items:flex-end">
+      <div style="flex:1">
+        <label>Diária Padrão (R$)</label>
+        <input type="text" id="tx-padrao" placeholder="Ex: 112,00" style="font-size:15px;font-weight:600">
       </div>
-      <div><label>Turno</label>
-        <select id="tx-turno">
-          <option value="almoco">Almoço</option><option value="noite">Noite</option><option value="intermediario">Intermediário</option><option value="fechamento">Fechamento</option>
-        </select>
+      <div style="flex:1">
+        <label>Diária Intermediário (R$)</label>
+        <input type="text" id="tx-inter" placeholder="Ex: 132,00" style="font-size:15px;font-weight:600">
+      </div>
+      <div>
+        <button class="btn btn-p" onclick="salvarTaxaSimples()" style="padding:10px 24px">Salvar valores</button>
       </div>
     </div>
-    <div class="fr c2">
-      <div><label>Valor da diária (R$)</label><input type="text" id="tx-valor" placeholder="Ex: 120,00"></div>
-      <div style="display:flex;align-items:flex-end"><button class="btn btn-p" style="width:100%" onclick="addTaxa()">+ Criar tabela</button></div>
-    </div>
-    <div id="tx-msg"></div>
-  </div>
-  <div class="card">
-    <div class="card-title">Tabelas cadastradas</div>
-    <div class="tow"><table><thead><tr><th>Nome</th><th>Setor</th><th>Turno</th><th>Valor diária</th><th>Ações</th></tr></thead>
-    <tbody id="tx-body"></tbody></table></div>
+    <div id="tx-msg" style="margin-top:8px"></div>
   </div>
   <div class="card">
     <div class="card-title">Estimativa de custo de taxas hoje</div>
@@ -4182,7 +4173,7 @@ function renderTaxas(){
     const linhas=(escHoje[col.key]?.linhas||[]).filter(l=>l&&(l.tipo==='taxa'||l.tipo==='horas'));
     linhas.forEach(l=>{
       const f=l.funcId?getF(l.funcId):null;
-      const nome=f?f.nome:(l.nomelivre||'Diarista');
+      const nome=(f&&f.nome)?f.nome:(l.nomelivre&&l.nomelivre.trim()?l.nomelivre.trim():'Diarista');
       // Match taxa by setor and turno (turno optional)
       const tc=taxasConfig.find(t=>
         t.setor===col.setor && (t.turno===col.turno||!t.turno||t.turno==='')
@@ -4230,11 +4221,25 @@ function addTaxa(){
   if(msg){msg.innerHTML='<div class="al al-s">Tabela salva!</div>';setTimeout(()=>{msg.innerHTML='';},2000);}
 }
 
-function excluirTaxa(id){
-  if(!confirm('Excluir esta tabela?'))return;
-  taxasConfig=taxasConfig.filter(t=>t.id!==id);
-  saveState();renderTaxas();
+function salvarTaxaSimples(){
+  const padrao=parseFloat((document.getElementById('tx-padrao')?.value||'').replace(',','.'))||0;
+  const inter=parseFloat((document.getElementById('tx-inter')?.value||'').replace(',','.'))||0;
+  const msg=document.getElementById('tx-msg');
+  if(!padrao&&!inter){if(msg)msg.innerHTML='<div class="al al-w">Informe pelo menos um valor.</div>';return;}
+  // Store as simple config in taxasConfig
+  taxasConfig=[
+    {id:1,nome:'Padrão',tipo:'padrao',valor:padrao},
+    {id:2,nome:'Intermediário',tipo:'inter',valor:inter}
+  ];
+  saveState();
+  renderTaxas();
+  if(msg){msg.innerHTML='<div class="al al-s">Valores salvos!</div>';setTimeout(()=>msg.innerHTML='',2000);}
 }
+
+
+
+
+
 
 </script>
 <!-- MOBILE BOTTOM NAV (shown on small screens) -->
