@@ -1081,6 +1081,11 @@ async function syncFromGist(){
   }}catch(e){}
   showSyncInd('✓ Sincronizado!','');
   try{renderAll();}catch(e){}
+  // Also refresh taxas estimativa after sync
+  try{
+    const activePage=document.querySelector('.page.active');
+    if(activePage&&activePage.id==='page-taxas')renderTaxas();
+  }catch(e){}
   setTimeout(()=>saveToGist(S),500);
 }
 
@@ -1193,7 +1198,11 @@ function go(id){
   }
   if(id==='page-ponto'||id==='ponto')safeRender(renderPonto,'renderPonto');
   if(id==='page-funcionarios'||id==='funcionarios')safeRender(renderFunc,'renderFunc');
-  if(id==='page-taxas'||id==='taxas')safeRender(renderTaxas,'renderTaxas');
+  if(id==='page-taxas'||id==='taxas'){
+    safeRender(renderTaxas,'renderTaxas');
+    // Also render after short delay in case data is still loading
+    setTimeout(()=>{try{renderTaxas();}catch(e){}},1500);
+  }
   if(id==='page-tarifas'||id==='tarifas')safeRender(renderTarifas,'renderTarifas');
   if(id==='page-relatorio'||id==='relatorio')safeRender(refreshSelects,'refreshSelects');
   if(id==='page-faltas'||id==='faltas')safeRender(renderFaltas,'renderFaltas');
@@ -3307,9 +3316,9 @@ function carregarPadraoDia(dateKey){
 }
 
 function _carregarPadraoDia(dateKey, futureOnly){
+  const d=new Date(dateKey+'T12:00:00');
   if(futureOnly){
     const hoje=new Date(); hoje.setHours(0,0,0,0);
-    const d=new Date(dateKey+'T12:00:00');
     if(d<hoje)return 0;
   }
   const dow=d.getDay();
