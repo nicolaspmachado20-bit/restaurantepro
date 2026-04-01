@@ -4180,7 +4180,7 @@ function renderTaxas(){
   COLUNAS_ESCALA.forEach(col=>{
     const allLinhas=(escHoje[col.key]?.linhas||[]);
     console.log('[TAXA] col=',col.key,'linhas=',JSON.stringify(allLinhas));
-    const linhas=allLinhas.filter(l=>l&&(l.tipo==='taxa'||l.tipo==='horas'));
+    const linhas=allLinhas.filter(l=>l&&l.tipo==='taxa');
     linhas.forEach(l=>{
       const f=l.funcId?getF(l.funcId):null;
       const nome=(f&&f.nome)?f.nome:(l.nomelivre&&l.nomelivre.trim()?l.nomelivre.trim():'Diarista');
