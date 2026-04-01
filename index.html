@@ -953,7 +953,7 @@ if(!Array.isArray(bloqLog))bloqLog=[];
 // ===================== GIST CLOUD STORAGE =====================
 const GIST_ID='2abf53ec70c7404b71867c8543d2e277';
 const GIST_FILE='restaurantepro_data.json';
-let _gistSaving=false, _pendingSave=false;
+let _gistSaving=false, _pendingSave=false, _syncing=false;
 // Token stored in localStorage only - never in code
 function getGistToken(){return '';}
 function setGistToken(t){localStorage.setItem('_rpro_gtoken',t);}
@@ -4168,29 +4168,29 @@ function renderTaxas(){
       <td>${t.nome}</td>
       <td>${t.setor||'—'}</td>
       <td>${t.turno||'—'}</td>
-      <td>R$ ${fV(t.valor)}</td>
+      <td>${fV(t.valor)}</td>
       <td><button class="btn" style="font-size:11px;color:var(--red)" onclick="excluirTaxa(${t.id})">Excluir</button></td>
     </tr>`).join('');
 
   // Estimativa de custo de taxas hoje
   const est=document.getElementById('tx-estimativa');
   if(!est)return;
-  // Count taxas (non-fixo) in today's escala
   const escHoje=escalas[todayStr]||{};
   let totalCusto=0;
   let linhasEst=[];
   COLUNAS_ESCALA.forEach(col=>{
     const linhas=(escHoje[col.key]?.linhas||[]).filter(l=>l&&(l.tipo==='taxa'||l.tipo==='horas'));
     linhas.forEach(l=>{
-      const f=getF(l.funcId);
-      // Find matching taxa config by setor/turno
+      const f=l.funcId?getF(l.funcId):null;
+      const nome=f?f.nome:(l.nomelivre||'Diarista');
+      // Match taxa by setor and turno (turno optional)
       const tc=taxasConfig.find(t=>
-        (!t.setor||t.setor===col.setor)&&
-        (!t.turno||t.turno===f.turno||!f.turno)
-      )||taxasConfig.find(t=>!t.setor);
+        t.setor===col.setor && (t.turno===col.turno||!t.turno||t.turno==='')
+      )||taxasConfig.find(t=>t.setor===col.setor
+      )||taxasConfig.find(t=>!t.setor||t.setor==='');
       const val=tc?tc.valor:0;
       totalCusto+=val;
-      linhasEst.push({nome:f?f.nome:l.nomelivre||'—',setor:col.setor,val});
+      linhasEst.push({nome,setor:col.label,val});
     });
   });
   if(!linhasEst.length){
@@ -4204,12 +4204,12 @@ function renderTaxas(){
       ${linhasEst.map(l=>`<tr>
         <td>${l.nome}</td>
         <td style="font-size:11px;color:var(--text2)">${l.setor}</td>
-        <td style="font-weight:600;color:var(--accent)">R$ ${fV(l.val)}</td>
+        <td style="font-weight:600;color:var(--accent)">${fV(l.val)}</td>
       </tr>`).join('')}
     </tbody></table></div>
     <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-top:2px solid var(--border);margin-top:8px">
       <span style="font-weight:600;font-size:13px">Total estimado hoje</span>
-      <span style="font-size:18px;font-weight:700;color:var(--accent)">R$ ${fV(totalCusto)}</span>
+      <span style="font-size:18px;font-weight:700;color:var(--accent)">${fV(totalCusto)}</span>
     </div>`;
 }
 
