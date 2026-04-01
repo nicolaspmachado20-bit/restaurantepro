@@ -1053,6 +1053,10 @@ function showSyncInd(msg, color){
 async function syncFromGist(){
   if(_syncing)return;
   _syncing=true;
+  // Save current session logs BEFORE sync
+  const preLogsA=[...logsAcesso];
+  const preLogsP=[...logsPrint];
+  const preLogsN=[...logsNegado];
   showSyncInd('☁ Carregando...','#185FA5');
   const localLogsAcesso=[...logsAcesso];
   const localLogsPrint=[...logsPrint];
@@ -1083,6 +1087,12 @@ async function syncFromGist(){
     localLA.forEach(l=>{if(!cloudTs2.has(l.ts+l.evento))logsAcesso.unshift(l);});
     logsAcesso.sort((a,b)=>b.ts.localeCompare(a.ts));
   }}catch(e){}
+  // Restore pre-sync session logs (they contain current login event)
+  preLogsA.forEach(l=>{if(!logsAcesso.find(x=>x.ts===l.ts&&x.evento===l.evento))logsAcesso.unshift(l);});
+  preLogsP.forEach(l=>{if(!logsPrint.find(x=>x.ts===l.ts))logsPrint.unshift(l);});
+  preLogsN.forEach(l=>{if(!logsNegado.find(x=>x.ts===l.ts&&x.motivo===l.motivo))logsNegado.unshift(l);});
+  // Also load from separate localStorage backup
+  try{const la=localStorage.getItem('rpro_logs_acesso');if(la){const arr=JSON.parse(la);arr.forEach(l=>{if(!logsAcesso.find(x=>x.ts===l.ts&&x.evento===l.evento))logsAcesso.unshift(l);});}}catch(e){}
   showSyncInd('✓ Sincronizado!','');
   try{renderAll();}catch(e){}
   // Also refresh taxas estimativa after sync
@@ -2161,6 +2171,7 @@ function renderAprovDiaContent(dateKey){
       const extraLinhas=[...taxaHorasLinhas,...fixosAcimaQuota];
       const pedido=pedidosEscala.find(p=>p.data===dateKey&&p.setorKey===col.key);
       extraLinhas.forEach((l,i)=>{
+        const actualRowIdx=allLinhas.indexOf(l);
         const f=l.funcId&&l.funcId!=='livre'?getF(l.funcId):null;
         const tipo=l.tipo||'';
         // Determine effective tipo — if not set, derive from cadastro
@@ -2172,7 +2183,7 @@ function renderAprovDiaContent(dateKey){
           setor:col.label, sColor:col.color,
           tipo:efTipo,
           colKey:col.key,
-          rowIdx:qp+i,
+          rowIdx:actualRowIdx>=0?actualRowIdx:qp+i,
           aprovacao:l.aprovacao||null,
           pedidoStatus:pedido?pedido.status:'pendente'
         });
@@ -2213,14 +2224,14 @@ function renderAprovDiaContent(dateKey){
                 <td style="padding:9px 16px;text-align:center">
                   <div style="display:inline-flex;align-items:center;gap:18px">
                     <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:500;color:#2d5a27;white-space:nowrap">
-                      <input type="radio" name="ind-${dateKey}-${r.colKey}-${r.rowIdx}" value="aprovado"
+                      <input type="radio" name="aprov-${dateKey}-${r.colKey}-${r.rowIdx}" value="aprovado"
                         ${dec==='aprovado'?'checked':''}
                         onchange="decidirIndividual('${dateKey}','${r.colKey}',${r.rowIdx},'aprovado')"
                         style="accent-color:#2d5a27;width:16px;height:16px;cursor:pointer">
                       Aprovado
                     </label>
                     <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:500;color:#8b2020;white-space:nowrap">
-                      <input type="radio" name="ind-${dateKey}-${r.colKey}-${r.rowIdx}" value="negado"
+                      <input type="radio" name="aprov-${dateKey}-${r.colKey}-${r.rowIdx}" value="negado"
                         ${dec==='negado'?'checked':''}
                         onchange="decidirIndividual('${dateKey}','${r.colKey}',${r.rowIdx},'negado')"
                         style="accent-color:#8b2020;width:16px;height:16px;cursor:pointer">
