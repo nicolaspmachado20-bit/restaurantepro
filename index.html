@@ -3356,8 +3356,8 @@ function _carregarPadraoDia(dateKey, futureOnly){
 
 function carregarPadrao(){
   // Ask: single day or entire month?
-  const mesAtual=escalaMes;
-  const anoAtual=escalaAno;
+  const mesAtual=parseInt(document.getElementById('escala-mes')?.value)||calMes;
+  const anoAtual=parseInt(document.getElementById('escala-ano')?.value)||calAno;
   const hoje=new Date(); hoje.setHours(0,0,0,0);
   const nomeMes=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'][mesAtual];
 
@@ -4187,12 +4187,10 @@ function renderTaxas(){
   const est=document.getElementById('tx-estimativa');
   if(!est)return;
   const escHoje=escalas[todayStr]||{};
-  console.log('[TAXA] todayStr=',todayStr,'escHoje keys=',Object.keys(escHoje));
   let totalCusto=0;
   let linhasEst=[];
   COLUNAS_ESCALA.forEach(col=>{
     const allLinhas=(escHoje[col.key]?.linhas||[]);
-    console.log('[TAXA] col=',col.key,'linhas=',JSON.stringify(allLinhas));
     const linhas=allLinhas.filter(l=>l&&l.tipo==='taxa');
     linhas.forEach(l=>{
       const f=l.funcId?getF(l.funcId):null;
