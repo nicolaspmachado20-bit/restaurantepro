@@ -1066,6 +1066,10 @@ async function syncFromGist(){
     return;
   }
   applyState(mergeDefaults(gistData));
+  // Safety: if cloud data has no funcionarios, keep local defaults
+  if(!funcionarios||funcionarios.length===0){
+    funcionarios=JSON.parse(JSON.stringify(DEFAULTS.funcionarios));
+  }
   const cloudTs=new Set((logsAcesso||[]).map(l=>l.ts+l.evento));
   localLogsAcesso.forEach(l=>{if(!cloudTs.has(l.ts+l.evento))logsAcesso.unshift(l);});
   const cloudPrintTs=new Set((logsPrint||[]).map(l=>l.ts+(l.tela||'')));
