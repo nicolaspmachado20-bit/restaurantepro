@@ -1102,7 +1102,7 @@ function confirmarReset(){
 }
 
 // ===================== HELPERS =====================
-function getF(id){return funcionarios.find(f=>f.id==id)||{nome:'?',setor:'?',vinculo:'fixo',turno:'almoco',jornada:8.33,hval:0}}
+function getF(id){return funcionarios.find(f=>f.id==id)||null}
 function getT(id){return tarifas.find(t=>t.id==id)||null}
 function tDiff(a,b){
   // Returns hours between time a and time b (24h format, handles overnight)
@@ -2416,22 +2416,49 @@ function decidirHEComHorario(extId, aprovar){
 }
 
 
+// Temporary decisions buffer (not saved until "Salvar decisões" clicked)
+let _decisoesPendentes={};
+
 function decidirIndividual(dateKey, colKey, rowIdx, decisao){
+  // Store decision temporarily
+  if(!_decisoesPendentes[dateKey])_decisoesPendentes[dateKey]={};
+  const key=colKey+'_'+rowIdx;
+  _decisoesPendentes[dateKey][key]={colKey,rowIdx,decisao};
+  // Apply visually only (no saveState yet)
   const linhas=getLinhas(dateKey,colKey);
-  if(!linhas[rowIdx])return;
-  linhas[rowIdx].aprovacao=decisao;
-  // Mark pedido as concluded if all lines in all setores have a decision
-  const pedido=pedidosEscala.find(p=>p.data===dateKey&&p.setorKey===colKey);
-  if(pedido){
-    const todasLinhas=getLinhas(dateKey,colKey).filter(l=>l&&(l.funcId||l.nomelivre));
-    const todasDecididas=todasLinhas.every(l=>l.aprovacao);
-    if(todasDecididas)pedido.status='aprovado';
-  }
+  if(linhas[rowIdx])linhas[rowIdx].aprovacao=decisao;
+  // Show save button
+  const saveBtn=document.getElementById('aprov-save-btn');
+  if(saveBtn){saveBtn.style.display='inline-flex';saveBtn.style.background='#2d5a27';}
+  renderAprovDiaContent(dateKey);
+}
+
+function salvarDecisoesAprovacao(dateKey){
+  if(!dateKey)return;
+  // Mark pedidos as concluded if all lines decided
+  COLUNAS_ESCALA.forEach(col=>{
+    const pedido=pedidosEscala.find(p=>p.data===dateKey&&p.setorKey===col.key);
+    if(pedido){
+      const todasLinhas=getLinhas(dateKey,col.key).filter(l=>l&&(l.funcId||l.nomelivre));
+      const todasDecididas=todasLinhas.slice(getQuadroPadrao(dateKey)[col.key]||0).every(l=>l.aprovacao);
+      if(todasDecididas)pedido.status='aprovado';
+    }
+  });
+  // Clear buffer
+  if(_decisoesPendentes[dateKey])delete _decisoesPendentes[dateKey];
+  // Save everything
   saveState();
+  // Hide save button
+  const saveBtn=document.getElementById('aprov-save-btn');
+  if(saveBtn)saveBtn.style.display='none';
+  // Update escala if open
+  if(selectedDia===dateKey&&document.getElementById('page-escala')?.classList.contains('active'))
+    renderEscalaDia(dateKey);
   renderAprovTabs();
   renderDash();
-  if(selectedDia===dateKey&&document.getElementById('page-escala').classList.contains('active'))renderEscalaDia(dateKey);
   renderAprovDiaContent(dateKey);
+  // Show confirmation
+  showSyncInd('✓ Decisões salvas!','#2d5a27');
 }
 
 
